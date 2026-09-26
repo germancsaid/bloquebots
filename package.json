@@ -1,0 +1,14 @@
+{
+  "name": "bloquebots",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Robots de bloques con física, en el navegador. Incluye servidor para jugar en red.",
+  "scripts": {
+    "build": "./build.sh",
+    "start": "./build.sh && node server.js",
+    "tunnel": "cloudflared tunnel --url http://localhost:8080"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,281 @@
+<title>Bloquebots</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@600;800&display=swap">
+<style>
+  :root {
+    --wall: #6b4a33;
+    --panel: rgba(38, 26, 18, 0.86);
+    --panel-edge: rgba(255, 226, 180, 0.18);
+    --ink: #f7ecdb;
+    --ink-soft: #cdb89b;
+    --accent: #f2b134;
+    --red: #e0473c;
+    --blue: #3a7bd5;
+    --dead: #7d6f62;
+    --display: "Bungee", "Arial Black", Impact, sans-serif;
+    --body: "Nunito", "Trebuchet MS", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden; background: var(--wall); color: var(--ink);
+    font-family: var(--body); font-weight: 600; font-size: 14px;
+    -webkit-user-select: none; user-select: none; touch-action: none;
+  }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; z-index: 2; pointer-events: none; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 10px;
+    padding: 8px 12px; box-shadow: 0 6px 18px rgba(0,0,0,.28);
+  }
+  .label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+
+  #teams { top: calc(12px + env(safe-area-inset-top, 0px)); left: 16px; display: grid; gap: 6px; }
+  .team-row { display: flex; align-items: center; gap: 6px; }
+  .team-name { font-family: var(--display); font-size: 12px; width: 44px; }
+  .bot-chip {
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+    font-size: 12px; font-weight: 800; background: rgba(255,255,255,.08); border: 1px solid transparent;
+  }
+  .bot-chip .pip { width: 9px; height: 9px; border-radius: 2px; background: currentColor; }
+  .bot-chip.active { border-color: var(--accent); }
+  .bot-chip.out { color: var(--dead); text-decoration: line-through; }
+
+  #turn { top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); text-align: center; }
+  #turn-title { font-family: var(--display); font-size: 18px; line-height: 1.1; }
+  #turn-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  #wind { top: calc(12px + env(safe-area-inset-top, 0px)); right: 16px; display: flex; align-items: center; gap: 10px; }
+  #wind-dial { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--panel-edge); position: relative; }
+  #wind-arrow { position: absolute; inset: 0; display: grid; place-items: center; transition: transform .5s ease; }
+  #wind-arrow svg { width: 30px; height: 30px; }
+  #wind-text { font-family: var(--display); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+  #aim { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); width: min(360px, calc(100% - 32px)); }
+  #aim-stats { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+  #power-track { height: 12px; border-radius: 6px; background: rgba(255,255,255,.1); overflow: hidden; }
+  #power-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #f2d05c, var(--accent) 55%, var(--red)); }
+  #aim-note { font-size: 12px; color: var(--ink-soft); margin-top: 6px; min-height: 1.3em; }
+  #aim-note.warn { color: #ffb08a; }
+  #walk-track { height: 5px; margin-top: 6px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; }
+  #walk-fill { height: 100%; width: 100%; background: #8fd18b; transition: width .1s linear; }
+
+  #picker { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding-inline: 16px; background: rgba(20,12,8,.8); }
+  .picker-card { width: min(760px, 100%); max-height: calc(100% - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 20px; }
+  .picker-title { font-family: var(--display); font-size: clamp(20px, 5vw, 30px); text-wrap: balance; }
+  .picker-sub { color: var(--ink-soft); font-size: 13px; }
+  .slots { display: flex; gap: 8px; flex-wrap: wrap; }
+  .slot { font: 800 13px var(--body); color: var(--ink-soft); border: 1px dashed var(--panel-edge); border-radius: 8px; padding: 7px 12px; background: none; }
+  .slot.filled { color: #2a1a0e; background: var(--accent); border: 1px solid transparent; cursor: pointer; }
+  .designs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .design {
+    display: grid; gap: 6px; align-content: start; text-align: left; color: var(--ink); cursor: pointer;
+    background: rgba(255,255,255,.05); border: 1px solid var(--panel-edge); border-radius: 10px; padding: 10px; font: 600 12px var(--body);
+  }
+  .design:hover { background: rgba(242,177,52,.12); border-color: rgba(242,177,52,.5); }
+  .design:focus-visible, .slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .design img { width: 100%; max-width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 6px; background: radial-gradient(circle at 50% 60%, rgba(255,226,180,.14), transparent 70%); }
+  .design-name { font-family: var(--display); font-size: 15px; }
+  .design-desc { color: var(--ink-soft); line-height: 1.4; }
+  .stat { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .pips { display: inline-flex; gap: 3px; }
+  .pips i { width: 12px; height: 7px; border-radius: 2px; background: rgba(255,255,255,.14); }
+  .pips i.on { background: var(--accent); }
+  #btn-mode { font: 800 13px var(--body); padding: 0 12px; height: 40px; }
+  .touch-col { display: grid; gap: 6px; justify-items: center; }
+  #map-row { display: grid; gap: 6px; }
+  .maps { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+  .map-btn { display: grid; gap: 3px; text-align: left; color: var(--ink); cursor: pointer; background: rgba(255,255,255,.05); border: 1px solid var(--panel-edge); border-radius: 10px; padding: 8px 10px; font: 600 12px var(--body); }
+  .map-btn .design-name { font-size: 13px; }
+  .map-btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(242,177,52,.16); }
+  .map-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tag { font: 800 10px var(--body); letter-spacing: .06em; text-transform: uppercase; color: #2a1a0e; background: var(--accent); border-radius: 4px; padding: 1px 5px; vertical-align: middle; }
+
+  body.building #teams, body.building #turn, body.building #wind, body.building #aim, body.building #help,
+  body.building #top-buttons, body.building #touch { display: none; }
+  #builder { top: calc(12px + env(safe-area-inset-top, 0px)); left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .build-panel, .build-save { pointer-events: auto; display: grid; gap: 8px; max-width: min(430px, 100%); }
+  .build-title { font-family: var(--display); font-size: 20px; color: var(--accent); }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  #builder [data-tool][aria-pressed="true"] { background: var(--accent); color: #2a1a0e; }
+  #builder select, #builder input {
+    font: 700 13px var(--body); color: var(--ink); background: rgba(255,255,255,.08); border: 1px solid var(--panel-edge);
+    border-radius: 8px; padding: 6px 8px; max-width: 100%;
+  }
+  #builder select:focus-visible, #builder input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .build-count { font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .build-status { font-size: 12px; line-height: 1.45; color: var(--ink-soft); min-height: 2.9em; }
+  .build-save { grid-template-columns: auto 1fr; align-items: center; }
+  .build-save .row { grid-column: 1 / -1; }
+  .build-keys { font-size: 11px; color: var(--ink-soft); line-height: 1.5; }
+  @media (pointer: coarse), (max-height: 760px) { .build-keys { display: none; } }
+  @media (max-width: 640px) { .build-panel { gap: 6px; padding: 8px 10px; } .build-title { font-size: 16px; } }
+
+  #help { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 16px; max-width: 250px; font-size: 12px; line-height: 1.45; color: var(--ink-soft); }
+  #help b { color: var(--ink); }
+
+  #toast {
+    top: 28%; left: 50%; transform: translate(-50%, -50%) scale(.9); opacity: 0;
+    font-family: var(--display); font-size: clamp(22px, 5vw, 44px); text-align: center; color: var(--ink);
+    text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(0,0,0,.35); transition: opacity .25s, transform .25s; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+  #touch { right: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: none; gap: 10px; align-items: end; pointer-events: auto; }
+  .pad { display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(2, 48px); gap: 6px; }
+  .tbtn {
+    font: 800 18px var(--body); color: var(--ink); background: var(--panel); border: 1px solid var(--panel-edge);
+    border-radius: 12px; touch-action: none; cursor: pointer;
+  }
+  .tbtn:active, .tbtn.held { background: rgba(242,177,52,.35); }
+  #btn-fire { width: 84px; height: 84px; border-radius: 50%; font-family: var(--display); font-size: 14px; background: var(--red); }
+  #top-buttons { top: calc(64px + env(safe-area-inset-top, 0px)); right: 16px; display: flex; gap: 6px; pointer-events: auto; }
+  .small-btn { font: 800 12px var(--body); color: var(--ink); background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  .small-btn:focus-visible, .tbtn:focus-visible, .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  #menu {
+    position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding-inline: 16px;
+    background: radial-gradient(ellipse at center, rgba(40,26,16,.55), rgba(20,12,8,.88));
+  }
+  .menu-card { max-width: 460px; width: 100%; text-align: center; display: grid; gap: 14px; padding: 26px 22px; }
+  .menu-title { font-family: var(--display); font-size: clamp(34px, 9vw, 56px); line-height: 1; letter-spacing: .02em; color: var(--accent); text-shadow: 0 4px 0 #7a4a12; text-wrap: balance; }
+  .menu-lead { font-size: 15px; line-height: 1.5; color: var(--ink); text-wrap: balance; margin: 0; }
+  .menu-rules { text-align: left; font-size: 13px; line-height: 1.55; color: var(--ink-soft); margin: 0; padding-left: 18px; }
+  .menu-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .menu-btn { font: 400 15px var(--display); color: #2a1a0e; background: var(--accent); border: 0; border-radius: 10px; padding: 12px 16px; cursor: pointer; box-shadow: 0 4px 0 #9a6414; }
+  .menu-btn.alt { background: var(--ink); box-shadow: 0 4px 0 #a08a6c; }
+  .menu-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #9a6414; }
+  #loading { font-size: 13px; color: var(--ink-soft); }
+
+  @media (pointer: coarse) { #touch { display: flex; } #help { display: none; } #aim { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); } }
+  @media (max-width: 640px) {
+    #turn { top: calc(96px + env(safe-area-inset-top, 0px)); }
+    #turn-title { font-size: 15px; }
+    #help { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { #toast, #wind-arrow { transition: none; } }
+</style>
+
+<canvas id="scene"></canvas>
+
+<div id="teams" class="hud panel" aria-live="polite"></div>
+<div id="turn" class="hud panel"><div id="turn-title">Bloquebots</div><div id="turn-sub">Cargando…</div></div>
+<div id="wind" class="hud panel">
+  <div id="wind-dial"><div id="wind-arrow"><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M15 3 L22 14 H17.5 V27 H12.5 V14 H8 Z" fill="#f2b134"/></svg></div></div>
+  <div><div class="label">Viento</div><div id="wind-text">0</div></div>
+</div>
+<div id="top-buttons" class="hud">
+  <button class="small-btn" id="btn-view" type="button">Vista general (V)</button>
+  <button class="small-btn" id="btn-switch" type="button">Cambiar robot (Tab)</button>
+  <button class="small-btn" id="btn-sound" type="button">Sonido: sí</button>
+</div>
+<div id="aim" class="hud panel">
+  <div id="aim-stats"><span id="aim-angle">Inclinación 35°</span><span id="aim-walk">Pasos 100%</span><span id="aim-power">Potencia 0%</span></div>
+  <div id="power-track"><div id="power-fill"></div></div>
+  <div id="walk-track"><div id="walk-fill"></div></div>
+  <div id="aim-note" aria-live="polite"></div>
+</div>
+<div id="help" class="hud panel">
+  <b>Apuntar:</b> mueve el ratón · <b>Disparar:</b> clic<br>
+  <b>Guerra total:</b> mantén el clic para disparar sin parar<br>
+  <b>Arco:</b> ↑ ↓ o Mayús + rueda<br>
+  <b>Moverse:</b> W adelante · S atrás · A D de lado<br>
+  <b>Girar el robot:</b> ← →<br>
+  <b>Cámara:</b> clic derecho y arrastrar · rueda para zoom<br>
+  <b>Cambiar de robot:</b> clic en tu robot o Tab
+</div>
+<div id="toast" class="hud"></div>
+<div id="touch" class="hud">
+  <div class="touch-col">
+  <button class="tbtn" id="btn-mode" type="button">Modo: apuntar</button>
+  <div class="pad">
+    <span></span><button class="tbtn" data-key="up" type="button" aria-label="Más arco">▲</button><span></span>
+    <button class="tbtn" data-key="left" type="button" aria-label="Girar el robot a la izquierda">◀</button>
+    <button class="tbtn" data-key="down" type="button" aria-label="Menos arco">▼</button>
+    <button class="tbtn" data-key="right" type="button" aria-label="Girar el robot a la derecha">▶</button>
+  </div>
+  </div>
+  <button class="tbtn" id="btn-fire" type="button">Fuego</button>
+</div>
+
+<div id="builder" class="hud" hidden>
+  <div class="panel build-panel">
+    <div class="build-title">Taller</div>
+    <div class="row" role="group" aria-label="Herramienta">
+      <button class="small-btn" data-tool="block" type="button" aria-pressed="true">Bloque (1)</button>
+      <button class="small-btn" data-tool="die" type="button" aria-pressed="false">Piloto (2)</button>
+      <button class="small-btn" data-tool="erase" type="button" aria-pressed="false">Quitar (3)</button>
+    </div>
+    <div class="row">
+      <button class="small-btn" id="b-turn" type="button">Girar (R)</button>
+      <button class="small-btn" id="b-pose" type="button">Postura: tumbado (F)</button>
+      <button class="small-btn" id="b-undo" type="button">Deshacer (Z)</button>
+      <button class="small-btn" id="b-test" type="button">Probar golpe (G)</button>
+    </div>
+    <div class="row">
+      <label class="label" for="b-start">Empezar con</label>
+      <select id="b-start"></select>
+      <button class="small-btn" id="b-load" type="button">Cargar</button>
+      <button class="small-btn" id="b-delete" type="button" hidden>Borrar guardado</button>
+    </div>
+    <div class="row">
+      <span class="build-count" id="b-count">Bloques 0/40</span>
+      <button class="small-btn" id="b-zoom-in" type="button" aria-label="Acercar cámara">+</button>
+      <button class="small-btn" id="b-zoom-out" type="button" aria-label="Alejar cámara">−</button>
+    </div>
+    <div class="build-status" id="b-status" aria-live="polite"></div>
+    <div class="build-keys">Arrastra para girar la cámara · rueda para zoom · mantén Mayús para colocar con más precisión</div>
+  </div>
+  <div class="panel build-save">
+    <label class="label" for="b-name">Nombre</label>
+    <input id="b-name" type="text" maxlength="16" value="Mi robot" autocomplete="off">
+    <div class="row">
+      <button class="menu-btn" id="b-save" type="button">Guardar robot</button>
+      <button class="menu-btn alt" id="b-exit" type="button">Salir</button>
+    </div>
+  </div>
+</div>
+
+<div id="picker" hidden>
+  <div class="picker-card panel">
+    <div>
+      <div class="picker-title" id="picker-title">Elige tus robots</div>
+      <div class="picker-sub">Elige dos modelos (puedes repetir). Toca un robot ya elegido para quitarlo.</div>
+    </div>
+    <div id="map-row">
+      <div class="label">Mapa</div>
+      <div class="maps" id="maps"></div>
+    </div>
+    <div class="slots" id="slots"></div>
+    <div class="designs" id="designs"></div>
+    <div class="menu-actions">
+      <button class="menu-btn alt" id="picker-back" type="button">Volver</button>
+      <button class="menu-btn" id="picker-ok" type="button" disabled>Listo</button>
+    </div>
+  </div>
+</div>
+
+<div id="menu">
+  <div class="menu-card panel">
+    <div class="menu-title">Bloquebots</div>
+    <p class="menu-lead">Robots de bloques de madera sobre una mesa. El piloto de cada robot es un dado: si se cae de la cabina, ese robot queda fuera.</p>
+    <ul class="menu-rules">
+      <li>Por turnos: camina, apunta con la mira y lanza un bloque. El juego calcula el ángulo y la potencia.</li>
+      <li>El ventilador cambia el viento en cada turno.</li>
+      <li>Si un robot se cae de la mesa, también queda fuera.</li>
+      <li>Gana el equipo que conserve algún piloto sentado.</li>
+      <li><b>Guerra total:</b> sin turnos contra la computadora. Todos disparan a la vez y puedes moverte sin límite para esquivar.</li>
+    </ul>
+    <div class="menu-actions">
+      <button class="menu-btn" id="btn-cpu" type="button" disabled>1 jugador (contra la computadora)</button>
+      <button class="menu-btn alt" id="btn-2p" type="button" disabled>2 jugadores</button>
+      <button class="menu-btn" id="btn-war" type="button" style="background:#e0703a;box-shadow:0 4px 0 #8a3a14">Guerra total (sin turnos)</button>
+      <button class="menu-btn alt" id="btn-build" type="button">Taller: diseña tu robot</button>
+    </div>
+    <div id="loading">Cargando motor 3D y física…</div>
+  </div>
+</div>
+
+<script type="module">
