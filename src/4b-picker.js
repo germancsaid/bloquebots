@@ -7,6 +7,7 @@ function openPicker() {
   if (!THUMBS) THUMBS = makeThumbs();
   $('menu').hidden = true;
   $('picker').hidden = false;
+  $('picker-back').textContent = 'Volver';
   pickerFor('red');
 }
 
@@ -22,13 +23,14 @@ $('maps').addEventListener('click', (e) => {
   mapChoice = b.dataset.map; knock(2, 1.2, 1); renderMaps();
 });
 
-function pickerFor(team) {
+function pickerFor(team, slots = []) {
   picker.team = team;
-  picker.slots = [];
+  picker.slots = [...slots];
   renderMaps();
   $('picker-title').textContent = G.vsCPU ? 'Elige tus robots' : `Equipo ${TEAM_NAMES[team]}: elige tus robots`;
   $('picker-title').style.color = team === 'red' ? '#ff8a7e' : '#8fb8ff';
   renderPicker();
+  netPickerNote();
 }
 
 const pips = (n) => `<span class="pips">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
@@ -42,7 +44,12 @@ function renderPicker() {
       <span class="design-desc">${d.desc}</span>
       <span class="stat"><span class="label">Altura</span>${pips(d.altura)}</span>
       ${d.custom ? `<span class="stat"><span class="label">Bloques</span><span>${d.count}</span></span>` : `<span class="stat"><span class="label">Aguante</span>${pips(d.aguante)}</span>`}
-    </button>`).join('');
+    </button>`).join('') + `
+    <button class="design new" type="button" data-new="1">
+      <span class="plus" aria-hidden="true">+</span>
+      <span class="design-name">Crear robot</span>
+      <span class="design-desc">Diséñalo en el Taller y vuelve aquí para usarlo.</span>
+    </button>`;
   $('slots').innerHTML = [0, 1].map((i) => picker.slots[i]
     ? `<button class="slot filled" type="button" data-slot="${i}" aria-label="Quitar ${esc(DESIGNS[picker.slots[i]].name)}">${i + 1}. ${esc(DESIGNS[picker.slots[i]].name)} ✕</button>`
     : `<span class="slot">${i + 1}. Sin elegir</span>`).join('');
@@ -50,6 +57,7 @@ function renderPicker() {
 }
 
 $('designs').addEventListener('click', (e) => {
+  if (e.target.closest('[data-new]')) { ensureAudio(); openBuilder('picker'); return; }
   const btn = e.target.closest('.design');
   if (!btn || picker.slots.length >= 2) return;
   picker.slots.push(btn.dataset.key);
@@ -62,7 +70,11 @@ $('slots').addEventListener('click', (e) => {
   picker.slots.splice(Number(btn.dataset.slot), 1);
   renderPicker();
 });
-$('picker-back').addEventListener('click', () => { $('picker').hidden = true; $('menu').hidden = false; });
+$('picker-back').addEventListener('click', () => {
+  // En red: tras una partida vuelve a la pantalla de revancha; antes de la primera, sale de la sala
+  if (G.net) { if (NET.played) netShowResult(); else netLeave(); return; }
+  $('picker').hidden = true; $('menu').hidden = false;
+});
 $('picker-ok').addEventListener('click', () => {
   G.picks[picker.team] = [...picker.slots];
   if (G.net) { netPicksDone(); return; }

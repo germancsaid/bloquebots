@@ -2,6 +2,7 @@
 // ---------- Guerra total: sin turnos, todos disparan a la vez ----------
 const WAR_RELOAD = 2.5;          // recarga de cada robot tuyo (s)
 const WAR_CPU_RELOAD = [4.5, 6.5];
+const WAR_BURST = 3;             // cada disparo de un jugador es una ráfaga de 3 bloques
 const WAR_MAX_SHOTS = 30;        // bloques disparados que se quedan en la mesa
 
 function setWind(s = Math.pow(Math.random(), 0.8)) {
@@ -14,14 +15,15 @@ function startWar() {
   G.mode = 'war'; G.team = G.myTeam; G.shots = []; G.windT = 0; G.walkLock = 0; G.timer = 999;
   setWind(rand(0, 0.4));
   G.active = robots.find((r) => r.team === G.myTeam && r.alive);
-  for (const r of robots) r.cool = r.team === G.myTeam || G.net ? 0 : rand(4, 6);
-  aimAtNearestEnemy();
-  G.viewYaw = G.yaw; G.camOffset = 0; G.arc = 0.35; G.target = null; G.locked = false; G.aim = null;
+  for (const r of robots) { r.cool = r.team === G.myTeam || G.net ? 0 : rand(4, 6); r.burst = 0; }
+  aimAtNearestEnemy(); faceCamera();
+  G.arc = 0.35; G.target = null; G.air = null; G.locked = false; G.aim = null;
   G.walkLeft = WALK_BUDGET; G.moved = false; G.ai = null;
-  $('turn-title').textContent = '¡Guerra total!';
+  const title = G.net && NET.played ? '¡Revancha!' : '¡Guerra total!';
+  $('turn-title').textContent = title;
   $('turn-title').style.color = '#ffb08a';
   renderTeams();
-  toast('¡Guerra total!', 1400, '#ffb08a');
+  toast(title, 1400, '#ffb08a');
   tune([392, 523, 659], 'square', 0.1, 0.12);
 }
 
@@ -47,12 +49,41 @@ function warFire(robot, v, from) {
   whoosh(robot.team === 'red' ? 0.6 : 0.35);
 }
 
+// ---------- Ráfagas: el primer bloque sale ya y los otros dos detrás, por el mismo sitio ----------
+// La recarga empieza con el primer disparo. `next` da la velocidad y el punto de salida de cada bloque.
+const readyToFire = (r) => !!r && r.alive && (r.cool || 0) <= 0 && !(r.burst > 0);
+// Tiempo entre bloques: el anterior tiene que haberse apartado (un bloque mide 3 de largo)
+const burstGap = (v) => clamp(3.6 / v.length(), 0.1, 0.4);
+// Un poco de dispersión para que la ráfaga no sea una sola línea
+function spread(v) {
+  return v.clone().applyEuler(new THREE.Euler(rand(-1, 1) * 0.012, rand(-1, 1) * 0.012, rand(-1, 1) * 0.012)).multiplyScalar(rand(0.99, 1.01));
+}
+function startBurst(robot, next, reload) {
+  const s = next();
+  if (!s) return false;
+  warFire(robot, s.v, s.from);
+  Object.assign(robot, { cool: reload, burst: WAR_BURST - 1, burstT: burstGap(s.v), burstNext: next, burstV: s.v });
+  return true;
+}
+function updateBursts(dt) {
+  for (const r of robots) {
+    if (!(r.burst > 0)) continue;
+    if (!r.alive) { r.burst = 0; continue; }
+    r.burstT -= dt;
+    if (r.burstT > 0) continue;
+    const s = r.burstNext() || { v: r.burstV, from: spawnPoint(r) };
+    const v = spread(s.v);
+    warFire(r, v, s.from);
+    r.burst--; r.burstT = burstGap(v);
+  }
+}
+
 function warTryFire() {
   const r = G.active;
   if (!r) return;
-  if (r.cool > 0) { toast('Recargando…', 600); return; }
-  warFire(r, G.aim.v, G.aim.from);
-  r.cool = WAR_RELOAD;
+  if (!readyToFire(r)) { reloadNag(); return; }
+  // Cada bloque de la ráfaga sale hacia donde apuntes en ese momento
+  startBurst(r, () => (G.active === r && G.aim ? { v: G.aim.v.clone(), from: G.aim.from.clone() } : null), WAR_RELOAD);
 }
 
 function updateWar(dt) {
@@ -61,9 +92,10 @@ function updateWar(dt) {
   if (G.windT > 12) { G.windT = 0; setWind(); toast('Cambió el viento', 900); if (G.net) netEvent({ e: 't', text: 'Cambió el viento', ms: 900 }); }
   G.walkLock = Math.max(0, G.walkLock - dt);
   for (const r of robots) r.cool = Math.max(0, (r.cool || 0) - dt);
+  updateBursts(dt);
 
-  // Disparo continuo mientras mantienes el clic
-  if (G.firing && canControl() && G.active && G.active.cool <= 0 && G.aim && G.aim.ok) warTryFire();
+  // Mantener el clic: dispara una ráfaga cada vez que el robot recarga
+  if (G.firing && canControl() && readyToFire(G.active) && G.aim) warTryFire();
 
   // La computadora camina por la mesa y dispara con cada robot cuando recarga
   const redAlive = robots.some((r) => r.team === 'red' && r.alive);
@@ -72,9 +104,10 @@ function updateWar(dt) {
     if (r.team !== 'blue') continue;
     if (!r.alive) { cpuStopWalk(r); continue; }
     updateCpuWalk(r, dt);
-    if (r.cool > 0) continue;
+    if (!readyToFire(r)) continue;
     const plan = planCpuShot(r);
     if (!plan.inRange) { r.cool = 0.8; if (!r.walk) cpuStartWalk(r, true); continue; }
+    // La CPU sigue tirando de a un bloque (con ráfagas sería el triple de difícil)
     cpuStopWalk(r);
     warFire(r, aimDir(plan.yaw, plan.pitch).multiplyScalar(shotSpeed(plan.power)), spawnPoint(r));
     r.cool = rand(...WAR_CPU_RELOAD);
@@ -100,7 +133,7 @@ function updateWar(dt) {
   if (G.active && !G.active.alive) {
     endWalk();
     const next = robots.find((r) => r.team === G.myTeam && r.alive);
-    if (next) { G.active = next; G.target = null; G.locked = false; G.viewYaw = G.yaw; G.camOffset = 0; renderTeams(); }
+    if (next) { G.active = next; G.target = null; G.air = null; G.locked = false; G.camFollow = 0; renderTeams(); }
   }
   const blueAlive = robots.some((r) => r.team === 'blue' && r.alive);
   if (!redAlive || !blueAlive) { endWalk(); if (G.remote) endWalk(G.remote); robots.forEach(cpuStopWalk); gameOver(redAlive ? 'red' : blueAlive ? 'blue' : null); }
@@ -109,7 +142,49 @@ function updateWar(dt) {
 function warSub() {
   const r = G.active;
   if (!r) return '';
-  return r.cool > 0 ? `${r.short} · recargando ${r.cool.toFixed(1)} s` : `${r.short} · ¡listo para disparar!`;
+  return readyToFire(r) ? `${r.short} · ¡listo para disparar!` : r.burst > 0 ? `${r.short} · ¡ráfaga!` : `${r.short} · recargando ${(r.cool || 0).toFixed(1)} s`;
+}
+
+// ---------- Munición a la vista: anillo de recarga en la mira, balas y barra abajo ----------
+const RING = 2 * Math.PI * 24;   // perímetro del anillo de la mira
+let wasReady = true, nagT = 0;
+function setRing(prog, state) {
+  $('ch-ring').setAttribute('stroke-dasharray', `${(prog * RING).toFixed(1)} ${RING.toFixed(1)}`);
+  $('crosshair').classList.toggle('ready', state === 'ready');
+  $('crosshair').classList.toggle('reloading', state === 'reloading');
+}
+function updateAmmoHud() {
+  const human = canControl(), r = G.active, war = human && G.mode === 'war' && r && r.alive;
+  $('crosshair').hidden = !(human && mouseLocked() && !G.overview);
+  $('lock-hint').hidden = !(human && !G.overview && lockHint());
+  $('ammo').hidden = $('ch-ammo').hidden = !war;
+  if (!war) { setRing(1, ''); $('btn-fire').style.setProperty('--reload', 1); wasReady = true; return; }
+  const cool = r.cool || 0, burst = r.burst || 0, ready = cool <= 0 && !burst;
+  const loaded = burst > 0 ? burst : ready ? WAR_BURST : 0;
+  const prog = ready ? 1 : clamp(1 - cool / WAR_RELOAD, 0, 1);
+  for (const id of ['ammo-pips', 'ch-ammo']) [...$(id).children].forEach((pip, i) => pip.classList.toggle('on', i < loaded));
+  $('reload-fill').style.width = `${prog * 100}%`;
+  $('ammo-text').textContent = ready ? '¡Listo! Ráfaga de 3' : burst > 0 ? '¡Fuego!' : `Recargando ${cool.toFixed(1)} s`;
+  $('ammo').classList.toggle('ready', ready);
+  $('ammo').classList.toggle('reloading', !ready);
+  $('btn-fire').style.setProperty('--reload', prog.toFixed(3));
+  setRing(prog, ready ? 'ready' : 'reloading');
+  if (ready && !wasReady) {
+    const ch = $('crosshair');
+    ch.classList.remove('pulse'); void ch.offsetWidth; ch.classList.add('pulse');
+    if (!G.firing) tune([660, 990], 'triangle', 0.05, 0.06);   // "clic-clac": ya puedes disparar
+  }
+  wasReady = ready;
+}
+// Disparar sin haber recargado: la munición tiembla y suena en vacío
+function reloadNag() {
+  const now = performance.now();
+  if (now - nagT < 400) return;
+  nagT = now;
+  const el = $('ammo');
+  el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope');
+  knock(1.2, 0.5, 0.5);
+  toast('Recargando…', 600);
 }
 
 // ---------- La computadora también camina ----------

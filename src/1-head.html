@@ -13,6 +13,8 @@
     --red: #e0473c;
     --blue: #3a7bd5;
     --dead: #7d6f62;
+    --ready: #8fe38a;
+    --reload: #ff9a3c;
     --display: "Bungee", "Arial Black", Impact, sans-serif;
     --body: "Nunito", "Trebuchet MS", system-ui, sans-serif;
     color-scheme: dark;
@@ -61,6 +63,32 @@
   #aim-note.warn { color: #ffb08a; }
   #walk-track { height: 5px; margin-top: 6px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; }
   #walk-fill { height: 100%; width: 100%; background: #8fd18b; transition: width .1s linear; }
+  #ammo { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .ammo-pips { display: inline-flex; gap: 4px; }
+  .ammo-pips i { width: 9px; height: 16px; border-radius: 4px 4px 2px 2px; background: rgba(255,255,255,.14); }
+  .ammo-pips i.on { background: var(--accent); box-shadow: 0 0 6px rgba(242,177,52,.7); }
+  #reload-track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
+  #reload-fill { height: 100%; width: 100%; background: var(--ready); }
+  #ammo.reloading #reload-fill { background: var(--reload); }
+  #ammo-text { font-weight: 800; font-size: 12px; min-width: 9.5em; text-align: right; font-variant-numeric: tabular-nums; }
+  #ammo.ready #ammo-text { color: var(--ready); }
+  #ammo.reloading #ammo-text { color: var(--reload); }
+  .nope { animation: nope .3s; }
+  @keyframes nope { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+  /* Mira fija en el centro (cuando el ratón mueve la cámara), con la recarga alrededor */
+  #crosshair { left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+  #crosshair svg { display: block; width: 100%; height: 100%; }
+  .ch-bg { fill: none; stroke: rgba(20,12,8,.45); stroke-width: 5; }
+  .ch-ring { fill: none; stroke: var(--accent); stroke-width: 3.5; stroke-linecap: round; }
+  #crosshair.ready .ch-ring { stroke: var(--ready); }
+  #crosshair.reloading .ch-ring { stroke: var(--reload); }
+  .ch-mark { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
+  #crosshair .ammo-pips { position: absolute; left: 50%; top: 68px; transform: translateX(-50%); gap: 3px; }
+  #crosshair .ammo-pips i { width: 6px; height: 11px; }
+  #crosshair.pulse svg { animation: pulse .4s ease-out; }
+  @keyframes pulse { from { transform: scale(1.4); } to { transform: scale(1); } }
+  #lock-hint { top: calc(50% + 46px); left: 50%; transform: translateX(-50%); text-align: center; font-size: 13px; font-weight: 800; }
 
   #picker { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding-inline: 16px; background: rgba(20,12,8,.8); }
   .picker-card { width: min(760px, 100%); max-height: calc(100% - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 20px; }
@@ -79,6 +107,10 @@
   .design img { width: 100%; max-width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 6px; background: radial-gradient(circle at 50% 60%, rgba(255,226,180,.14), transparent 70%); }
   .design-name { font-family: var(--display); font-size: 15px; }
   .design-desc { color: var(--ink-soft); line-height: 1.4; }
+  .design.new { justify-items: center; align-content: center; text-align: center; border-style: dashed; min-height: 150px; }
+  .design.new .plus { font: 400 40px/1 var(--display); color: var(--accent); }
+  .picker-note { color: var(--ready); font-weight: 800; font-size: 13px; }
+  .picker-note:empty { display: none; }
   .stat { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
   .pips { display: inline-flex; gap: 3px; }
   .pips i { width: 12px; height: 7px; border-radius: 2px; background: rgba(255,255,255,.14); }
@@ -86,6 +118,8 @@
   #btn-mode { font: 800 13px var(--body); padding: 0 12px; height: 40px; }
   .touch-col { display: grid; gap: 6px; justify-items: center; }
   #lobby { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding-inline: 16px; background: rgba(20,12,8,.85); }
+  #result { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding-inline: 16px; background: rgba(20,12,8,.72); }
+  #result-score { font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums; }
   .lobby-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; text-align: left; }
   .lobby-box { display: grid; gap: 8px; align-content: start; padding: 12px; border: 1px solid var(--panel-edge); border-radius: 10px; background: rgba(255,255,255,.04); }
   #lobby [data-side][aria-pressed="true"] { background: var(--accent); color: #2a1a0e; }
@@ -101,7 +135,7 @@
   .tag { font: 800 10px var(--body); letter-spacing: .06em; text-transform: uppercase; color: #2a1a0e; background: var(--accent); border-radius: 4px; padding: 1px 5px; vertical-align: middle; }
 
   body.building #teams, body.building #turn, body.building #wind, body.building #aim, body.building #help,
-  body.building #top-buttons, body.building #touch { display: none; }
+  body.building #top-buttons, body.building #touch, body.building #crosshair, body.building #lock-hint { display: none; }
   #builder { top: calc(12px + env(safe-area-inset-top, 0px)); left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .build-panel, .build-save { pointer-events: auto; display: grid; gap: 8px; max-width: min(430px, 100%); }
   .build-title { font-family: var(--display); font-size: 20px; color: var(--accent); }
@@ -137,7 +171,7 @@
     border-radius: 12px; touch-action: none; cursor: pointer;
   }
   .tbtn:active, .tbtn.held { background: rgba(242,177,52,.35); }
-  #btn-fire { width: 84px; height: 84px; border-radius: 50%; font-family: var(--display); font-size: 14px; background: var(--red); }
+  #btn-fire { width: 84px; height: 84px; border-radius: 50%; font-family: var(--display); font-size: 14px; background: conic-gradient(var(--red) calc(var(--reload, 1) * 360deg), #6e2e28 0); }
   #top-buttons { top: calc(64px + env(safe-area-inset-top, 0px)); right: 16px; display: flex; gap: 6px; pointer-events: auto; }
   .small-btn { font: 800 12px var(--body); color: var(--ink); background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
   .small-btn:focus-visible, .tbtn:focus-visible, .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -162,7 +196,7 @@
     #turn-title { font-size: 15px; }
     #help { display: none; }
   }
-  @media (prefers-reduced-motion: reduce) { #toast, #wind-arrow { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { #toast, #wind-arrow { transition: none; } .nope, #crosshair.pulse svg { animation: none; } }
 </style>
 
 <canvas id="scene"></canvas>
@@ -182,18 +216,34 @@
   <div id="aim-stats"><span id="aim-angle">Inclinación 35°</span><span id="aim-walk">Pasos 100%</span><span id="aim-power">Potencia 0%</span></div>
   <div id="power-track"><div id="power-fill"></div></div>
   <div id="walk-track"><div id="walk-fill"></div></div>
+  <div id="ammo" hidden>
+    <span class="label">Munición</span>
+    <span class="ammo-pips" id="ammo-pips"><i></i><i></i><i></i></span>
+    <div id="reload-track"><div id="reload-fill"></div></div>
+    <span id="ammo-text">¡Listo!</span>
+  </div>
   <div id="aim-note" aria-live="polite"></div>
 </div>
 <div id="help" class="hud panel">
-  <b>Apuntar:</b> mueve el ratón · <b>Disparar:</b> clic<br>
-  <b>Guerra total:</b> mantén el clic para disparar sin parar<br>
-  <b>Arco:</b> ↑ ↓ o Mayús + rueda<br>
+  <b>Cámara y mira:</b> mueve el ratón (clic para empezar · Esc lo suelta)<br>
+  <b>Disparar:</b> clic · si apuntas al aire sale directo<br>
+  <b>Guerra total:</b> ráfagas de 3 · mantén el clic<br>
+  <b>Arco:</b> ↑ ↓ o Mayús + rueda · <b>Zoom:</b> rueda<br>
   <b>Moverse:</b> W adelante · S atrás · A D de lado<br>
-  <b>Girar el robot:</b> ← →<br>
-  <b>Cámara:</b> clic derecho y arrastrar · rueda para zoom<br>
-  <b>Cambiar de robot:</b> clic en tu robot o Tab
+  <b>Girar el robot:</b> ← → (la cámara no gira)<br>
+  <b>Cambiar de robot:</b> Tab
 </div>
 <div id="toast" class="hud"></div>
+<div id="crosshair" class="hud" hidden aria-hidden="true">
+  <svg viewBox="0 0 64 64">
+    <circle class="ch-bg" cx="32" cy="32" r="24"/>
+    <circle class="ch-ring" id="ch-ring" cx="32" cy="32" r="24" transform="rotate(-90 32 32)" stroke-dasharray="150.8 150.8"/>
+    <path class="ch-mark" d="M32 13v6M32 45v6M13 32h6M45 32h6"/>
+    <circle cx="32" cy="32" r="2" fill="#f7ecdb"/>
+  </svg>
+  <span class="ammo-pips" id="ch-ammo"><i></i><i></i><i></i></span>
+</div>
+<div id="lock-hint" class="hud panel" hidden>Haz clic para mirar y apuntar con el ratón · Esc lo suelta</div>
 <div id="touch" class="hud">
   <div class="touch-col">
   <button class="tbtn" id="btn-mode" type="button">Modo: apuntar</button>
@@ -269,11 +319,25 @@
   </div>
 </div>
 
+<div id="result" hidden>
+  <div class="menu-card panel">
+    <div class="menu-title" id="result-title" style="font-size:clamp(28px,7vw,44px)">¡Ganaste!</div>
+    <div><div class="label">Marcador</div><div id="result-score"></div></div>
+    <p class="menu-lead" id="result-status" aria-live="polite"></p>
+    <div class="menu-actions">
+      <button class="menu-btn" id="btn-rematch" type="button">Revancha</button>
+      <button class="menu-btn alt" id="btn-rematch-build" type="button">Crear robot nuevo</button>
+    </div>
+    <div class="menu-actions"><button class="small-btn" id="btn-leave" type="button">Salir al menú</button></div>
+  </div>
+</div>
+
 <div id="picker" hidden>
   <div class="picker-card panel">
     <div>
       <div class="picker-title" id="picker-title">Elige tus robots</div>
       <div class="picker-sub">Elige dos modelos (puedes repetir). Toca un robot ya elegido para quitarlo.</div>
+      <div class="picker-note" id="picker-note" aria-live="polite"></div>
     </div>
     <div id="map-row">
       <div class="label">Mapa</div>
@@ -297,7 +361,7 @@
       <li>El ventilador cambia el viento en cada turno.</li>
       <li>Si un robot se cae de la mesa, también queda fuera.</li>
       <li>Gana el equipo que conserve algún piloto sentado.</li>
-      <li><b>Guerra total:</b> sin turnos contra la computadora. Todos disparan a la vez y puedes moverte sin límite para esquivar.</li>
+      <li><b>Guerra total:</b> sin turnos contra la computadora. Todos disparan a la vez (tú, en ráfagas de 3 bloques) y puedes moverte sin límite para esquivar.</li>
     </ul>
     <div class="menu-actions">
       <button class="menu-btn" id="btn-cpu" type="button" disabled>1 jugador (contra la computadora)</button>

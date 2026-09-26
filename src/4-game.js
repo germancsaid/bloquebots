@@ -52,6 +52,8 @@ function tune(notes, type = 'square', step = 0.11, vol = 0.12) {
 const DEG = Math.PI / 180;
 const WIND_MAX = 5;           // aceleración máxima del viento (unidades/s²)
 const TURN_TIME = 45;
+// Cámara libre: solo la gira el ratón (ángulos de la vista; negativo = mirando hacia abajo)
+const CAM_PITCH0 = -0.24, PITCH_MIN = -1.25, PITCH_MAX = 0.5, MOUSE_SENS = 0.0024;
 const G = {
   mode: 'menu', vsCPU: true, team: 'red', next: { red: 0, blue: 0 }, active: null,
   yaw: 0, pitch: 35 * DEG, power: 0, charging: false, timer: TURN_TIME,
@@ -60,7 +62,7 @@ const G = {
   timeScale: 1, slowmo: 0, shake: 0, overview: false, camDist: 16, ai: null, turnNo: 0,
   walkLeft: 0, walkGroup: null, walkBox: null, walkFrom: null, blockers: [], walking: false, walkPhase: 0, moved: false,
   picks: { red: ['alto', 'tanque'], blue: ['alto', 'tanque'] },
-  camOffset: 0, myTeam: 'red', net: false, zs: 0, remote: null, map: 'escritorio', war: false, shots: [], windT: 0, walkLock: 0, viewYaw: 0, arc: 0.35, target: null, targetN: null, locked: false, aim: null,
+  camYaw: 0, camPitch: CAM_PITCH0, camFollow: 0, myTeam: 'red', net: false, zs: 0, remote: null, map: 'escritorio', war: false, shots: [], windT: 0, walkLock: 0, arc: 0.35, target: null, targetN: null, air: null, locked: false, aim: null,
 };
 const NET_DESIGNS = {};   // robots de una partida en red (llegan del otro jugador)
 const WALK_SPEED = 8, WALK_BUDGET = 26, SHOT_MASS = 3;
@@ -95,23 +97,24 @@ function updateHud() {
   const sub = G.mode === 'war' ? warSub() : G.mode === 'aim' ? `${G.active.short} · ${secs} s` : G.mode === 'flying' ? '¡Bloque en el aire!' : G.mode === 'settle' ? 'Esperando a que todo se detenga…' : '';
   $('turn-sub').textContent = sub;
   const human = (G.mode === 'aim' || G.mode === 'war') && !isCpuTurn();
-  const ok = !human || (G.aim && G.aim.ok);
+  const ok = !human || !!G.aim;
   $('aim-angle').textContent = ok ? `Ángulo ${Math.round(G.pitch / DEG)}°` : 'Ángulo –';
   $('aim-power').textContent = ok ? `Potencia ${Math.round(G.power * 100)}%` : 'Potencia –';
   let note = '';
   if (human) {
-    if (!G.target) note = 'Mueve el ratón para apuntar · clic para disparar';
-    else if (!G.aim || !G.aim.ok) note = 'Fuera de alcance: acércate caminando o elige otro punto';
+    if (!G.aim) note = 'Mueve el ratón para apuntar · clic para disparar';
+    else if (G.aim.direct) note = G.target ? 'Muy lejos para bombearlo: sale directo a toda potencia' : 'Al aire: sale directo a toda potencia · clic para disparar';
     else {
       const d = Math.hypot(G.target.x - G.aim.from.x, G.target.z - G.aim.from.z) * 2.5;
       note = G.blocked ? 'Hay algo en el camino: sube el arco (↑)' : `Distancia ${Math.round(d)} cm · Arco ${Math.round(G.arc * 100)}% (↑↓) · clic para disparar`;
     }
   }
   $('aim-note').textContent = note;
-  $('aim-note').classList.toggle('warn', human && !!G.target && (!G.aim || !G.aim.ok || G.blocked));
+  $('aim-note').classList.toggle('warn', human && !!G.aim && !G.aim.direct && G.blocked);
   $('power-fill').style.width = `${G.power * 100}%`;
   $('walk-fill').style.width = `${(G.walkLeft / WALK_BUDGET) * 100}%`;
   $('aim-walk').textContent = `Pasos ${Math.round((G.walkLeft / WALK_BUDGET) * 100)}%`;
+  updateAmmoHud();
   // Flecha del viento relativa a la cámara: "arriba" = hacia donde mira la cámara
   const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir);
   const rel = Math.atan2(G.wind.z, G.wind.x) - Math.atan2(camDir.z, camDir.x);
@@ -179,6 +182,11 @@ function aimAtNearestEnemy() {
   }
   if (best) G.yaw = Math.atan2(best.z - me.z, best.x - me.x);
 }
+// La cámara empieza detrás del robot mirando al rival; desde ahí solo la mueve el ratón
+function faceCamera(resetPitch = true) {
+  G.camYaw = G.yaw; G.camFollow = 0;
+  if (resetPitch) G.camPitch = CAM_PITCH0;
+}
 
 function startTurn() {
   G.active = pickRobot(G.team);
@@ -188,8 +196,8 @@ function startTurn() {
   fanAngleTarget = a;
   G.pitch = 35 * DEG; G.power = 0; G.charging = false; G.timer = TURN_TIME;
   G.walkLeft = WALK_BUDGET; G.moved = false; G.walkGroup = null; G.walking = false;
-  aimAtNearestEnemy();
-  G.viewYaw = G.yaw; G.camOffset = 0; G.arc = 0.35; G.target = null; G.locked = false; G.aim = null;
+  aimAtNearestEnemy(); faceCamera();
+  G.arc = 0.35; G.target = null; G.air = null; G.locked = false; G.aim = null;
   G.mode = 'aim';
   G.ai = isCpuTurn() ? planCpuShot(G.active) : null;
   setTurnText(); renderTeams();
@@ -201,8 +209,7 @@ function selectRobot(r) {
   if (G.moved) { toast('Ya moviste este robot', 1000); return; }
   endWalk();
   G.active = r;
-  aimAtNearestEnemy();
-  G.viewYaw = G.yaw; G.camOffset = 0;
+  aimAtNearestEnemy(); faceCamera(false);
   renderTeams();
 }
 function switchRobot() {
@@ -396,21 +403,26 @@ function solveShot(from, to, arc) {
   const v = launchVelocity(from, to, n);
   return { v, n, yaw: Math.atan2(v.z, v.x), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)), power: clamp((v.length() - SHOT_MIN) / (SHOT_MAX - SHOT_MIN), 0, 1) };
 }
+// Disparo directo: sale a toda potencia hacia donde apuntas. Sirve para disparar al aire
+// (la mira no toca ninguna superficie) o a un punto al que no se llega con un tiro bombeado.
+const DIRECT_STEPS = 480;   // la mira dibuja hasta 4 s de vuelo
+function directShot(from, toward) {
+  const v = toward.clone().sub(from).normalize().multiplyScalar(SHOT_MAX);
+  return { v, n: DIRECT_STEPS, yaw: Math.atan2(v.z, v.x), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)), power: 1 };
+}
 function updateAim() {
   G.aim = null;
-  if (!G.target || !G.active) return;
+  if (!G.active || !(G.target || G.air)) return;
   const from = spawnPoint(G.active);
-  const sol = solveShot(from, G.target, G.arc);
-  if (!sol) { G.aim = { ok: false, from }; return; }
-  G.aim = { ok: true, from, ...sol };
-  G.yaw = sol.yaw; G.pitch = sol.pitch; G.power = sol.power;
+  const sol = G.target && solveShot(from, G.target, G.arc);
+  G.aim = sol ? { ok: true, from, ...sol } : { ok: true, direct: true, from, ...directShot(from, G.target || G.air) };
+  G.yaw = G.aim.yaw; G.pitch = G.aim.pitch; G.power = G.aim.power;
 }
 function tryFire() {
   ensureAudio();
   if (!canControl()) return;
-  if (!G.target) { toast('Apunta con el ratón a donde quieras pegar', 1300); return; }
-  if (!G.aim || !G.aim.ok) { toast('Fuera de alcance', 1100); return; }
-  if (G.mode === 'war' && G.net && NET.role === 'guest') { if (G.active.cool > 0) toast('Recargando…', 600); else netSendFire(); return; }
+  if (!G.aim) { toast('Apunta con el ratón a donde quieras disparar', 1300); return; }
+  if (G.mode === 'war' && G.net && NET.role === 'guest') { if (readyToFire(G.active)) netSendFire(); else reloadNag(); return; }
   if (G.mode === 'war') { warTryFire(); return; }
   fire(G.aim.v, G.aim.from);
 }
@@ -475,11 +487,13 @@ function endTurn() {
 }
 
 function gameOver(winner) {
-  G.mode = 'over'; G.active = null; renderTeams();
-  if (G.net && NET.role === 'host') netSend({ type: 'over', winner });
+  // El anfitrión manda antes el último estado (así el rival ve caer el último piloto)
+  if (G.net && NET.role === 'host') { NET.sendT = 1; netHostTick(0); netSend({ type: 'over', winner }); }
+  G.mode = 'over'; G.active = null; G.firing = false; renderTeams();
   const title = G.net ? (winner === G.myTeam ? '¡Ganaste!' : winner ? 'Perdiste' : '¡Empate!') : winner ? (G.vsCPU ? (winner === 'red' ? '¡Ganaste!' : 'Gana la CPU') : `¡Gana ${TEAM_NAMES[winner]}!`) : '¡Empate!';
   $('turn-title').textContent = title; $('turn-sub').textContent = '';
   tune(winner ? [523, 659, 784, 1047] : [440, 440, 349], 'square', 0.13, 0.12);
+  if (G.net) { netGameOver(winner, title); return; }
   setTimeout(() => {
     document.querySelector('.menu-title').textContent = title;
     document.querySelector('.menu-lead').textContent = winner ? 'Todos los pilotos del otro equipo terminaron fuera de sus cabinas.' : 'No quedó ningún piloto sentado.';

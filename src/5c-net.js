@@ -2,17 +2,20 @@
 // ---------- Multijugador en red (Guerra total 1 contra 1) ----------
 // Quien crea la partida (anfitrión) calcula toda la física. El invitado le manda sus controles
 // y recibe, 30 veces por segundo, dónde está cada pieza. Así los dos ven exactamente lo mismo.
+// Al terminar, los dos siguen en la misma sala y pueden pedir la revancha tantas veces como quieran.
 const NET = {
   ws: null, role: null, code: '', side: 'red', ready: false,
   input: { fwd: 0, side: 0, turn: 0 }, remoteInput: { fwd: 0, side: 0, turn: 0 }, fireQueue: [],
   myPicks: null, peerPicks: null, events: [], known: new Set(), sendT: 0, fullT: 0, lastFire: 0, lastKnock: 0,
+  stage: null,   // lobby · pick (eligiendo) · wait (esperando al rival) · play · result · build (en el taller)
+  score: { me: 0, rival: 0 }, played: false, peerAgain: false, peerGone: '', lastSlots: [],
 };
 const r3 = (v) => Math.round(v * 1000) / 1000, r4 = (v) => Math.round(v * 10000) / 10000;
 const other = (team) => (team === 'red' ? 'blue' : 'red');
 
 function netSend(msg) { if (NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(msg)); }
 function netEvent(e) {
-  if (!G.net || NET.role !== 'host') return;
+  if (!G.net || NET.role !== 'host' || G.mode !== 'war') return;
   if (e.e === 'k') { const now = performance.now(); if (now - NET.lastKnock < 30) return; NET.lastKnock = now; }
   NET.events.push(e);
 }
@@ -26,11 +29,12 @@ function netConnect() {
     if (NET.ws && NET.ws.readyState === 1) return resolve();
     const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     NET.ws = ws;
-    ws.onopen = () => resolve();
+    ws.onopen = () => { ws.wasOpen = true; resolve(); };
     ws.onerror = () => reject(new Error('sin conexión'));
     ws.onclose = () => {
+      if (NET.ws !== ws) return;   // una conexión vieja que ya cerramos nosotros
       NET.ws = null;
-      if (G.net && G.mode === 'war') netAbort('Se perdió la conexión con el servidor.');
+      if (ws.wasOpen) netPeerLeft('Se perdió la conexión con el servidor.');
     };
     ws.onmessage = (ev) => { try { netMessage(JSON.parse(ev.data)); } catch (err) { console.error(err); } };
   });
@@ -38,14 +42,44 @@ function netConnect() {
 
 function netAbort(msg) {
   endWalk(); if (G.remote) endWalk(G.remote);
-  G.net = false; G.remote = null; G.mode = 'over';
+  G.net = false; G.remote = null; G.mode = 'over'; G.firing = false;
+  NET.stage = null; NET.role = null;
   toast(msg, 2500);
-  $('picker').hidden = true; $('lobby').hidden = true;
+  for (const id of ['picker', 'lobby', 'result']) $(id).hidden = true;
   setTimeout(() => { $('menu').hidden = false; }, 1500);
+}
+
+// Salir de la sala: el rival recibe el aviso y tú vuelves al menú
+function netLeave() {
+  NET.stage = null; NET.role = null; NET.myPicks = NET.peerPicks = null;
+  G.net = false; G.remote = null;
+  const ws = NET.ws;
+  NET.ws = null;
+  if (ws) ws.close();
+  for (const id of ['lobby', 'picker', 'result']) $(id).hidden = true;
+  $('menu').hidden = false;
+}
+
+// El rival (o el servidor) ya no está: esta sala se terminó
+function netPeerLeft(msg) {
+  const stage = NET.stage;
+  if (!stage) return;
+  if (stage === 'play') { netAbort(msg); return; }
+  NET.role = null; NET.myPicks = NET.peerPicks = null; NET.peerGone = msg;
+  if (stage === 'result') { renderResult(); return; }
+  if (stage === 'build') { status(`${msg} Al salir del taller volverás a la sala.`); return; }
+  netToLobby(msg);
+}
+function netToLobby(msg) {
+  G.net = false; NET.stage = 'lobby'; NET.peerGone = '';
+  for (const id of ['picker', 'result']) $(id).hidden = true;
+  $('lobby').hidden = false; $('lobby-start').hidden = false; $('lobby-wait').hidden = true;
+  lobbyStatus(`${msg} Crea otra partida o únete a otra.`);
 }
 
 // ---------- Sala ----------
 function openLobby() {
+  NET.stage = 'lobby';
   $('menu').hidden = true; $('lobby').hidden = false;
   $('lobby-start').hidden = false; $('lobby-wait').hidden = true;
   lobbyStatus('Conectando con el servidor…');
@@ -57,10 +91,7 @@ for (const b of document.querySelectorAll('#lobby [data-side]')) b.addEventListe
   for (const o of document.querySelectorAll('#lobby [data-side]')) o.setAttribute('aria-pressed', String(o === b));
 });
 $('btn-net').addEventListener('click', () => { ensureAudio(); openLobby(); });
-$('net-back').addEventListener('click', () => {
-  if (NET.ws) NET.ws.close();
-  NET.role = null; $('lobby').hidden = true; $('menu').hidden = false;
-});
+$('net-back').addEventListener('click', netLeave);
 $('net-create').addEventListener('click', async () => {
   try { await netConnect(); } catch { lobbyStatus('No se pudo conectar con el servidor.'); return; }
   NET.role = 'host'; netSend({ type: 'create' });
@@ -73,21 +104,34 @@ $('net-join').addEventListener('click', async () => {
 });
 $('net-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('net-join').click(); });
 
-function netToPicker(team) {
+// Elegir robots: al entrar en la sala, o en cada revancha (con los robots de la vez anterior ya puestos)
+function netToPicker(team, rematch = false) {
   G.net = true; G.war = true; G.vsCPU = false; G.myTeam = team;
-  NET.myPicks = null; NET.peerPicks = null;
-  $('lobby').hidden = true;
+  NET.myPicks = null; NET.stage = 'pick';
+  if (!rematch) Object.assign(NET, { peerPicks: null, score: { me: 0, rival: 0 }, played: false, peerAgain: false, peerGone: '', lastSlots: [] });
+  $('lobby').hidden = true; $('result').hidden = true;
   if (!THUMBS) THUMBS = makeThumbs();
   $('picker').hidden = false;
-  pickerFor(team);
-  $('picker-title').textContent = `Eres el equipo ${TEAM_NAMES[team]}: elige tus robots`;
+  pickerFor(team, rematch ? NET.lastSlots.filter((k) => DESIGNS[k]) : []);
+  $('picker-title').textContent = rematch ? `Revancha: elige tus robots (equipo ${TEAM_NAMES[team]})` : `Eres el equipo ${TEAM_NAMES[team]}: elige tus robots`;
+  $('picker-back').textContent = rematch ? 'Volver' : 'Salir de la sala';
+}
+function netPickerNote() {
+  $('picker-note').textContent = !G.net ? '' : NET.peerPicks ? 'Tu rival ya eligió: en cuanto pulses Listo empieza la partida.'
+    : NET.peerAgain ? 'Tu rival también está eligiendo robots…' : '';
+}
+function netNotes() {
+  if (NET.stage === 'result') renderResult();
+  if (NET.stage === 'pick') netPickerNote();
 }
 
 // Cada robot elegido viaja como diseño completo (así también funcionan los del Taller)
 const pickData = (keys) => keys.map((k) => ({ design: (DESIGNS[k] || NET_DESIGNS[k]).make() }));
 
 function netPicksDone() {
+  NET.lastSlots = [...picker.slots];
   NET.myPicks = pickData(G.picks[G.myTeam]);
+  NET.stage = 'wait';
   $('picker').hidden = true; $('lobby').hidden = false;
   $('lobby-start').hidden = true; $('lobby-wait').hidden = false;
   if (NET.role === 'guest') { netSend({ type: 'picks', picks: NET.myPicks }); lobbyStatus('Listo. Esperando a que el anfitrión elija…'); }
@@ -113,7 +157,8 @@ function netStart(setup) {
   G.picks = { red: ['n_red_0', 'n_red_1'], blue: ['n_blue_0', 'n_blue_1'] };
   G.map = setup.map; G.zs = setup.zs;
   G.net = true; G.war = true; G.vsCPU = false;
-  $('lobby').hidden = true; $('picker').hidden = true; $('menu').hidden = true;
+  NET.stage = 'play'; NET.peerAgain = false; NET.peerPicks = null;
+  for (const id of ['lobby', 'picker', 'menu', 'result']) $(id).hidden = true;
   setupMatch();
   G.shot = null; G.overview = false;
   startWar();
@@ -125,6 +170,38 @@ function netStart(setup) {
       walking: false, walkLock: 0, walkLeft: WALK_BUDGET, moved: false, walkPhase: 0, blockers: [] };
   } else G.remote = null;
 }
+
+// ---------- Fin de la partida y revancha ----------
+function netGameOver(winner, title) {
+  NET.stage = 'result'; NET.played = true;
+  NET.myPicks = NET.peerPicks = null; NET.peerAgain = false; NET.fireQueue = [];
+  if (winner === G.myTeam) NET.score.me++; else if (winner) NET.score.rival++;
+  G.remote = null;
+  $('result-title').textContent = title;
+  // Un momento para ver cómo quedó la mesa antes de la pantalla de revancha
+  setTimeout(() => { if (NET.stage === 'result') netShowResult(); }, 2200);
+}
+function netShowResult() {
+  NET.stage = 'result';
+  $('picker').hidden = true; $('result').hidden = false;
+  renderResult();
+}
+function renderResult() {
+  const s = NET.score, gone = NET.peerGone;
+  $('result-score').textContent = `Tú ${s.me} – ${s.rival} Rival`;
+  $('btn-rematch').hidden = $('btn-rematch-build').hidden = !!gone;
+  $('result-status').textContent = gone || (NET.peerPicks ? 'Tu rival ya eligió sus robots: ¡te espera para la revancha!'
+    : NET.peerAgain ? 'Tu rival quiere la revancha y está eligiendo robots.'
+    : '¿Otra? Vuelve a elegir robots o crea uno nuevo en el Taller.');
+}
+function netRematch() {
+  if (NET.peerGone) return;
+  netSend({ type: 'again' });   // solo avisa al rival: la partida empieza cuando los dos eligen
+  netToPicker(G.myTeam, true);
+}
+$('btn-rematch').addEventListener('click', () => { ensureAudio(); netRematch(); });
+$('btn-rematch-build').addEventListener('click', () => { ensureAudio(); netRematch(); openBuilder('picker'); });
+$('btn-leave').addEventListener('click', netLeave);
 
 function netMessage(m) {
   switch (m.type) {
@@ -142,16 +219,14 @@ function netMessage(m) {
     case 'lobby':         // (invitado) el anfitrión eligió equipo: nos toca el otro
       netToPicker(other(m.hostTeam));
       break;
-    case 'picks': NET.peerPicks = m.picks; netMaybeStart(); break;
+    case 'picks': NET.peerPicks = m.picks; netMaybeStart(); netNotes(); break;
+    case 'again': NET.peerAgain = true; netNotes(); break;
     case 'setup': netStart(m); break;
     case 'snap': netGuestSnap(m); break;
     case 'in': NET.remoteInput = { fwd: m.f, side: m.s, turn: m.t }; netRemoteActive(m.a); break;
     case 'fire': NET.fireQueue.push(m); break;
-    case 'over': if (G.net && G.mode === 'war') { endWalk(); gameOver(m.winner); G.net = false; } break;
-    case 'peer-left':
-      if (G.net && G.mode === 'war') netAbort('Tu rival se desconectó.');
-      else if (NET.role) { lobbyStatus('Tu rival se fue de la sala.'); $('picker').hidden = true; $('lobby').hidden = false; }
-      break;
+    case 'over': if (G.net && G.mode === 'war') { endWalk(); gameOver(m.winner); } break;
+    case 'peer-left': netPeerLeft('Tu rival se fue de la sala.'); break;
   }
 }
 
@@ -175,11 +250,13 @@ function netHostWar(dt) {
   for (const f of NET.fireQueue) {
     netRemoteActive(f.a);
     const r = R.active;
-    if (!r || !r.alive || r.cool > 0) continue;
-    const from = spawnPoint(r), sol = solveShot(from, new THREE.Vector3(...f.p), clamp(f.arc, 0, 1));
-    if (!sol) continue;
-    warFire(r, sol.v, from);
-    r.cool = WAR_RELOAD;
+    if (!readyToFire(r)) continue;
+    // Ráfaga hacia el punto que eligió el rival (o directa, si apuntó al aire)
+    const P = new THREE.Vector3(...f.p), arc = clamp(f.arc, 0, 1);
+    startBurst(r, () => {
+      const from = spawnPoint(r), sol = (!f.air && solveShot(from, P, arc)) || directShot(from, P);
+      return { v: sol.v, from };
+    }, WAR_RELOAD);
   }
   NET.fireQueue = [];
 }
@@ -203,7 +280,7 @@ function netHostTick(dt) {
   }
   netSend({
     type: 'snap', b, ev,
-    r: robots.map((r) => [r.alive ? 1 : 0, r3(r.cool || 0), r4(r.yaw || 0)]),
+    r: robots.map((r) => [r.alive ? 1 : 0, r3(r.cool || 0), r4(r.yaw || 0), r.burst || 0]),
     ra: G.remote ? robots.indexOf(G.remote.active) : -1,
     w: [r3(G.wind.x), r3(G.wind.z), r3(G.wind.strength), r3(G.wind.angle)],
   });
@@ -232,13 +309,13 @@ function netGuestSnap(m) {
     if (t.fresh) { syncMesh(t); t.fresh = false; }
   }
   let changed = false;
-  m.r.forEach(([alive, cool, yaw], i) => {
+  m.r.forEach(([alive, cool, yaw, burst], i) => {
     const r = robots[i];
     if (!r) return;
     if (r.alive !== !!alive) { r.alive = !!alive; changed = true; }
-    r.cool = cool; r.yaw = yaw;
+    r.cool = cool; r.yaw = yaw; r.burst = burst || 0;
   });
-  if (G.active && !G.active.alive && robots[m.ra] && robots[m.ra].alive) { G.active = robots[m.ra]; G.target = null; changed = true; }
+  if (G.active && !G.active.alive && robots[m.ra] && robots[m.ra].alive) { G.active = robots[m.ra]; G.target = null; G.air = null; G.camFollow = 0; changed = true; }
   if (changed) renderTeams();
   const [wx, wz, s, a] = m.w;
   G.wind = { x: wx, z: wz, strength: s, angle: a }; fanAngleTarget = a;
@@ -252,12 +329,13 @@ function netGuestFrame(dt) {
   if (NET.sendT < 1 / 20) return;
   NET.sendT = 0;
   netSend({ type: 'in', f: NET.input.fwd, s: NET.input.side, t: NET.input.turn, a: robots.indexOf(G.active) });
-  // Mantener el clic: dispara cada vez que el robot recarga
-  if (G.firing && G.active && G.active.cool <= 0 && G.aim && G.aim.ok && performance.now() - NET.lastFire > 500) netSendFire();
+  // Mantener el clic: dispara una ráfaga cada vez que el robot recarga
+  if (G.firing && readyToFire(G.active) && G.aim && performance.now() - NET.lastFire > 500) netSendFire();
 }
 
 function netSendFire() {
-  if (!G.target || !G.active) return;
+  const p = G.target || G.air;
+  if (!p || !G.active) return;
   NET.lastFire = performance.now();
-  netSend({ type: 'fire', p: [r3(G.target.x), r3(G.target.y), r3(G.target.z)], arc: r3(G.arc), a: robots.indexOf(G.active) });
+  netSend({ type: 'fire', p: [r3(p.x), r3(p.y), r3(p.z)], arc: r3(G.arc), air: G.target ? 0 : 1, a: robots.indexOf(G.active) });
 }

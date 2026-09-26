@@ -15,6 +15,14 @@ npm start
 
 En el menú: **Jugar en red** → uno crea la partida (elige Rojo o Azul y el mapa) y el otro se une con el código de 4 letras.
 El que crea la partida calcula la física; el otro recibe el estado 30 veces por segundo.
+Al terminar, **Revancha** vuelve a elegir robots (o crear uno nuevo en el Taller) sin salir de la sala, tantas veces como queráis; el marcador se va sumando.
+
+## Controles
+
+- **Cámara y mira:** haz clic en la mesa y el ratón pasa a mover la cámara; la mira es el centro de la pantalla (Esc suelta el ratón).
+- **Disparar:** clic. Si apuntas al aire, el bloque sale directo a toda potencia hacia donde miras.
+- **Guerra total:** cada disparo es una ráfaga de 3 bloques; la mira y la barra de munición muestran la recarga.
+- **Moverse:** W/S adelante y atrás, A/D de lado, ← → giran el robot (la cámara no gira con él). ↑ ↓ cambian el arco.
 
 ## Estructura
 

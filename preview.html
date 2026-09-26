@@ -14,6 +14,8 @@
     --red: #e0473c;
     --blue: #3a7bd5;
     --dead: #7d6f62;
+    --ready: #8fe38a;
+    --reload: #ff9a3c;
     --display: "Bungee", "Arial Black", Impact, sans-serif;
     --body: "Nunito", "Trebuchet MS", system-ui, sans-serif;
     color-scheme: dark;
@@ -62,6 +64,32 @@
   #aim-note.warn { color: #ffb08a; }
   #walk-track { height: 5px; margin-top: 6px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; }
   #walk-fill { height: 100%; width: 100%; background: #8fd18b; transition: width .1s linear; }
+  #ammo { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .ammo-pips { display: inline-flex; gap: 4px; }
+  .ammo-pips i { width: 9px; height: 16px; border-radius: 4px 4px 2px 2px; background: rgba(255,255,255,.14); }
+  .ammo-pips i.on { background: var(--accent); box-shadow: 0 0 6px rgba(242,177,52,.7); }
+  #reload-track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
+  #reload-fill { height: 100%; width: 100%; background: var(--ready); }
+  #ammo.reloading #reload-fill { background: var(--reload); }
+  #ammo-text { font-weight: 800; font-size: 12px; min-width: 9.5em; text-align: right; font-variant-numeric: tabular-nums; }
+  #ammo.ready #ammo-text { color: var(--ready); }
+  #ammo.reloading #ammo-text { color: var(--reload); }
+  .nope { animation: nope .3s; }
+  @keyframes nope { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+  /* Mira fija en el centro (cuando el ratón mueve la cámara), con la recarga alrededor */
+  #crosshair { left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+  #crosshair svg { display: block; width: 100%; height: 100%; }
+  .ch-bg { fill: none; stroke: rgba(20,12,8,.45); stroke-width: 5; }
+  .ch-ring { fill: none; stroke: var(--accent); stroke-width: 3.5; stroke-linecap: round; }
+  #crosshair.ready .ch-ring { stroke: var(--ready); }
+  #crosshair.reloading .ch-ring { stroke: var(--reload); }
+  .ch-mark { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
+  #crosshair .ammo-pips { position: absolute; left: 50%; top: 68px; transform: translateX(-50%); gap: 3px; }
+  #crosshair .ammo-pips i { width: 6px; height: 11px; }
+  #crosshair.pulse svg { animation: pulse .4s ease-out; }
+  @keyframes pulse { from { transform: scale(1.4); } to { transform: scale(1); } }
+  #lock-hint { top: calc(50% + 46px); left: 50%; transform: translateX(-50%); text-align: center; font-size: 13px; font-weight: 800; }
 
   #picker { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding-inline: 16px; background: rgba(20,12,8,.8); }
   .picker-card { width: min(760px, 100%); max-height: calc(100% - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 20px; }
@@ -80,6 +108,10 @@
   .design img { width: 100%; max-width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 6px; background: radial-gradient(circle at 50% 60%, rgba(255,226,180,.14), transparent 70%); }
   .design-name { font-family: var(--display); font-size: 15px; }
   .design-desc { color: var(--ink-soft); line-height: 1.4; }
+  .design.new { justify-items: center; align-content: center; text-align: center; border-style: dashed; min-height: 150px; }
+  .design.new .plus { font: 400 40px/1 var(--display); color: var(--accent); }
+  .picker-note { color: var(--ready); font-weight: 800; font-size: 13px; }
+  .picker-note:empty { display: none; }
   .stat { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
   .pips { display: inline-flex; gap: 3px; }
   .pips i { width: 12px; height: 7px; border-radius: 2px; background: rgba(255,255,255,.14); }
@@ -87,6 +119,8 @@
   #btn-mode { font: 800 13px var(--body); padding: 0 12px; height: 40px; }
   .touch-col { display: grid; gap: 6px; justify-items: center; }
   #lobby { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding-inline: 16px; background: rgba(20,12,8,.85); }
+  #result { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding-inline: 16px; background: rgba(20,12,8,.72); }
+  #result-score { font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums; }
   .lobby-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; text-align: left; }
   .lobby-box { display: grid; gap: 8px; align-content: start; padding: 12px; border: 1px solid var(--panel-edge); border-radius: 10px; background: rgba(255,255,255,.04); }
   #lobby [data-side][aria-pressed="true"] { background: var(--accent); color: #2a1a0e; }
@@ -102,7 +136,7 @@
   .tag { font: 800 10px var(--body); letter-spacing: .06em; text-transform: uppercase; color: #2a1a0e; background: var(--accent); border-radius: 4px; padding: 1px 5px; vertical-align: middle; }
 
   body.building #teams, body.building #turn, body.building #wind, body.building #aim, body.building #help,
-  body.building #top-buttons, body.building #touch { display: none; }
+  body.building #top-buttons, body.building #touch, body.building #crosshair, body.building #lock-hint { display: none; }
   #builder { top: calc(12px + env(safe-area-inset-top, 0px)); left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .build-panel, .build-save { pointer-events: auto; display: grid; gap: 8px; max-width: min(430px, 100%); }
   .build-title { font-family: var(--display); font-size: 20px; color: var(--accent); }
@@ -138,7 +172,7 @@
     border-radius: 12px; touch-action: none; cursor: pointer;
   }
   .tbtn:active, .tbtn.held { background: rgba(242,177,52,.35); }
-  #btn-fire { width: 84px; height: 84px; border-radius: 50%; font-family: var(--display); font-size: 14px; background: var(--red); }
+  #btn-fire { width: 84px; height: 84px; border-radius: 50%; font-family: var(--display); font-size: 14px; background: conic-gradient(var(--red) calc(var(--reload, 1) * 360deg), #6e2e28 0); }
   #top-buttons { top: calc(64px + env(safe-area-inset-top, 0px)); right: 16px; display: flex; gap: 6px; pointer-events: auto; }
   .small-btn { font: 800 12px var(--body); color: var(--ink); background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
   .small-btn:focus-visible, .tbtn:focus-visible, .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -163,7 +197,7 @@
     #turn-title { font-size: 15px; }
     #help { display: none; }
   }
-  @media (prefers-reduced-motion: reduce) { #toast, #wind-arrow { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { #toast, #wind-arrow { transition: none; } .nope, #crosshair.pulse svg { animation: none; } }
 </style>
 
 <canvas id="scene"></canvas>
@@ -183,18 +217,34 @@
   <div id="aim-stats"><span id="aim-angle">Inclinación 35°</span><span id="aim-walk">Pasos 100%</span><span id="aim-power">Potencia 0%</span></div>
   <div id="power-track"><div id="power-fill"></div></div>
   <div id="walk-track"><div id="walk-fill"></div></div>
+  <div id="ammo" hidden>
+    <span class="label">Munición</span>
+    <span class="ammo-pips" id="ammo-pips"><i></i><i></i><i></i></span>
+    <div id="reload-track"><div id="reload-fill"></div></div>
+    <span id="ammo-text">¡Listo!</span>
+  </div>
   <div id="aim-note" aria-live="polite"></div>
 </div>
 <div id="help" class="hud panel">
-  <b>Apuntar:</b> mueve el ratón · <b>Disparar:</b> clic<br>
-  <b>Guerra total:</b> mantén el clic para disparar sin parar<br>
-  <b>Arco:</b> ↑ ↓ o Mayús + rueda<br>
+  <b>Cámara y mira:</b> mueve el ratón (clic para empezar · Esc lo suelta)<br>
+  <b>Disparar:</b> clic · si apuntas al aire sale directo<br>
+  <b>Guerra total:</b> ráfagas de 3 · mantén el clic<br>
+  <b>Arco:</b> ↑ ↓ o Mayús + rueda · <b>Zoom:</b> rueda<br>
   <b>Moverse:</b> W adelante · S atrás · A D de lado<br>
-  <b>Girar el robot:</b> ← →<br>
-  <b>Cámara:</b> clic derecho y arrastrar · rueda para zoom<br>
-  <b>Cambiar de robot:</b> clic en tu robot o Tab
+  <b>Girar el robot:</b> ← → (la cámara no gira)<br>
+  <b>Cambiar de robot:</b> Tab
 </div>
 <div id="toast" class="hud"></div>
+<div id="crosshair" class="hud" hidden aria-hidden="true">
+  <svg viewBox="0 0 64 64">
+    <circle class="ch-bg" cx="32" cy="32" r="24"/>
+    <circle class="ch-ring" id="ch-ring" cx="32" cy="32" r="24" transform="rotate(-90 32 32)" stroke-dasharray="150.8 150.8"/>
+    <path class="ch-mark" d="M32 13v6M32 45v6M13 32h6M45 32h6"/>
+    <circle cx="32" cy="32" r="2" fill="#f7ecdb"/>
+  </svg>
+  <span class="ammo-pips" id="ch-ammo"><i></i><i></i><i></i></span>
+</div>
+<div id="lock-hint" class="hud panel" hidden>Haz clic para mirar y apuntar con el ratón · Esc lo suelta</div>
 <div id="touch" class="hud">
   <div class="touch-col">
   <button class="tbtn" id="btn-mode" type="button">Modo: apuntar</button>
@@ -270,11 +320,25 @@
   </div>
 </div>
 
+<div id="result" hidden>
+  <div class="menu-card panel">
+    <div class="menu-title" id="result-title" style="font-size:clamp(28px,7vw,44px)">¡Ganaste!</div>
+    <div><div class="label">Marcador</div><div id="result-score"></div></div>
+    <p class="menu-lead" id="result-status" aria-live="polite"></p>
+    <div class="menu-actions">
+      <button class="menu-btn" id="btn-rematch" type="button">Revancha</button>
+      <button class="menu-btn alt" id="btn-rematch-build" type="button">Crear robot nuevo</button>
+    </div>
+    <div class="menu-actions"><button class="small-btn" id="btn-leave" type="button">Salir al menú</button></div>
+  </div>
+</div>
+
 <div id="picker" hidden>
   <div class="picker-card panel">
     <div>
       <div class="picker-title" id="picker-title">Elige tus robots</div>
       <div class="picker-sub">Elige dos modelos (puedes repetir). Toca un robot ya elegido para quitarlo.</div>
+      <div class="picker-note" id="picker-note" aria-live="polite"></div>
     </div>
     <div id="map-row">
       <div class="label">Mapa</div>
@@ -298,7 +362,7 @@
       <li>El ventilador cambia el viento en cada turno.</li>
       <li>Si un robot se cae de la mesa, también queda fuera.</li>
       <li>Gana el equipo que conserve algún piloto sentado.</li>
-      <li><b>Guerra total:</b> sin turnos contra la computadora. Todos disparan a la vez y puedes moverte sin límite para esquivar.</li>
+      <li><b>Guerra total:</b> sin turnos contra la computadora. Todos disparan a la vez (tú, en ráfagas de 3 bloques) y puedes moverte sin límite para esquivar.</li>
     </ul>
     <div class="menu-actions">
       <button class="menu-btn" id="btn-cpu" type="button" disabled>1 jugador (contra la computadora)</button>
@@ -903,6 +967,8 @@ function tune(notes, type = 'square', step = 0.11, vol = 0.12) {
 const DEG = Math.PI / 180;
 const WIND_MAX = 5;           // aceleración máxima del viento (unidades/s²)
 const TURN_TIME = 45;
+// Cámara libre: solo la gira el ratón (ángulos de la vista; negativo = mirando hacia abajo)
+const CAM_PITCH0 = -0.24, PITCH_MIN = -1.25, PITCH_MAX = 0.5, MOUSE_SENS = 0.0024;
 const G = {
   mode: 'menu', vsCPU: true, team: 'red', next: { red: 0, blue: 0 }, active: null,
   yaw: 0, pitch: 35 * DEG, power: 0, charging: false, timer: TURN_TIME,
@@ -911,7 +977,7 @@ const G = {
   timeScale: 1, slowmo: 0, shake: 0, overview: false, camDist: 16, ai: null, turnNo: 0,
   walkLeft: 0, walkGroup: null, walkBox: null, walkFrom: null, blockers: [], walking: false, walkPhase: 0, moved: false,
   picks: { red: ['alto', 'tanque'], blue: ['alto', 'tanque'] },
-  camOffset: 0, myTeam: 'red', net: false, zs: 0, remote: null, map: 'escritorio', war: false, shots: [], windT: 0, walkLock: 0, viewYaw: 0, arc: 0.35, target: null, targetN: null, locked: false, aim: null,
+  camYaw: 0, camPitch: CAM_PITCH0, camFollow: 0, myTeam: 'red', net: false, zs: 0, remote: null, map: 'escritorio', war: false, shots: [], windT: 0, walkLock: 0, arc: 0.35, target: null, targetN: null, air: null, locked: false, aim: null,
 };
 const NET_DESIGNS = {};   // robots de una partida en red (llegan del otro jugador)
 const WALK_SPEED = 8, WALK_BUDGET = 26, SHOT_MASS = 3;
@@ -946,23 +1012,24 @@ function updateHud() {
   const sub = G.mode === 'war' ? warSub() : G.mode === 'aim' ? `${G.active.short} · ${secs} s` : G.mode === 'flying' ? '¡Bloque en el aire!' : G.mode === 'settle' ? 'Esperando a que todo se detenga…' : '';
   $('turn-sub').textContent = sub;
   const human = (G.mode === 'aim' || G.mode === 'war') && !isCpuTurn();
-  const ok = !human || (G.aim && G.aim.ok);
+  const ok = !human || !!G.aim;
   $('aim-angle').textContent = ok ? `Ángulo ${Math.round(G.pitch / DEG)}°` : 'Ángulo –';
   $('aim-power').textContent = ok ? `Potencia ${Math.round(G.power * 100)}%` : 'Potencia –';
   let note = '';
   if (human) {
-    if (!G.target) note = 'Mueve el ratón para apuntar · clic para disparar';
-    else if (!G.aim || !G.aim.ok) note = 'Fuera de alcance: acércate caminando o elige otro punto';
+    if (!G.aim) note = 'Mueve el ratón para apuntar · clic para disparar';
+    else if (G.aim.direct) note = G.target ? 'Muy lejos para bombearlo: sale directo a toda potencia' : 'Al aire: sale directo a toda potencia · clic para disparar';
     else {
       const d = Math.hypot(G.target.x - G.aim.from.x, G.target.z - G.aim.from.z) * 2.5;
       note = G.blocked ? 'Hay algo en el camino: sube el arco (↑)' : `Distancia ${Math.round(d)} cm · Arco ${Math.round(G.arc * 100)}% (↑↓) · clic para disparar`;
     }
   }
   $('aim-note').textContent = note;
-  $('aim-note').classList.toggle('warn', human && !!G.target && (!G.aim || !G.aim.ok || G.blocked));
+  $('aim-note').classList.toggle('warn', human && !!G.aim && !G.aim.direct && G.blocked);
   $('power-fill').style.width = `${G.power * 100}%`;
   $('walk-fill').style.width = `${(G.walkLeft / WALK_BUDGET) * 100}%`;
   $('aim-walk').textContent = `Pasos ${Math.round((G.walkLeft / WALK_BUDGET) * 100)}%`;
+  updateAmmoHud();
   // Flecha del viento relativa a la cámara: "arriba" = hacia donde mira la cámara
   const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir);
   const rel = Math.atan2(G.wind.z, G.wind.x) - Math.atan2(camDir.z, camDir.x);
@@ -1030,6 +1097,11 @@ function aimAtNearestEnemy() {
   }
   if (best) G.yaw = Math.atan2(best.z - me.z, best.x - me.x);
 }
+// La cámara empieza detrás del robot mirando al rival; desde ahí solo la mueve el ratón
+function faceCamera(resetPitch = true) {
+  G.camYaw = G.yaw; G.camFollow = 0;
+  if (resetPitch) G.camPitch = CAM_PITCH0;
+}
 
 function startTurn() {
   G.active = pickRobot(G.team);
@@ -1039,8 +1111,8 @@ function startTurn() {
   fanAngleTarget = a;
   G.pitch = 35 * DEG; G.power = 0; G.charging = false; G.timer = TURN_TIME;
   G.walkLeft = WALK_BUDGET; G.moved = false; G.walkGroup = null; G.walking = false;
-  aimAtNearestEnemy();
-  G.viewYaw = G.yaw; G.camOffset = 0; G.arc = 0.35; G.target = null; G.locked = false; G.aim = null;
+  aimAtNearestEnemy(); faceCamera();
+  G.arc = 0.35; G.target = null; G.air = null; G.locked = false; G.aim = null;
   G.mode = 'aim';
   G.ai = isCpuTurn() ? planCpuShot(G.active) : null;
   setTurnText(); renderTeams();
@@ -1052,8 +1124,7 @@ function selectRobot(r) {
   if (G.moved) { toast('Ya moviste este robot', 1000); return; }
   endWalk();
   G.active = r;
-  aimAtNearestEnemy();
-  G.viewYaw = G.yaw; G.camOffset = 0;
+  aimAtNearestEnemy(); faceCamera(false);
   renderTeams();
 }
 function switchRobot() {
@@ -1247,21 +1318,26 @@ function solveShot(from, to, arc) {
   const v = launchVelocity(from, to, n);
   return { v, n, yaw: Math.atan2(v.z, v.x), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)), power: clamp((v.length() - SHOT_MIN) / (SHOT_MAX - SHOT_MIN), 0, 1) };
 }
+// Disparo directo: sale a toda potencia hacia donde apuntas. Sirve para disparar al aire
+// (la mira no toca ninguna superficie) o a un punto al que no se llega con un tiro bombeado.
+const DIRECT_STEPS = 480;   // la mira dibuja hasta 4 s de vuelo
+function directShot(from, toward) {
+  const v = toward.clone().sub(from).normalize().multiplyScalar(SHOT_MAX);
+  return { v, n: DIRECT_STEPS, yaw: Math.atan2(v.z, v.x), pitch: Math.atan2(v.y, Math.hypot(v.x, v.z)), power: 1 };
+}
 function updateAim() {
   G.aim = null;
-  if (!G.target || !G.active) return;
+  if (!G.active || !(G.target || G.air)) return;
   const from = spawnPoint(G.active);
-  const sol = solveShot(from, G.target, G.arc);
-  if (!sol) { G.aim = { ok: false, from }; return; }
-  G.aim = { ok: true, from, ...sol };
-  G.yaw = sol.yaw; G.pitch = sol.pitch; G.power = sol.power;
+  const sol = G.target && solveShot(from, G.target, G.arc);
+  G.aim = sol ? { ok: true, from, ...sol } : { ok: true, direct: true, from, ...directShot(from, G.target || G.air) };
+  G.yaw = G.aim.yaw; G.pitch = G.aim.pitch; G.power = G.aim.power;
 }
 function tryFire() {
   ensureAudio();
   if (!canControl()) return;
-  if (!G.target) { toast('Apunta con el ratón a donde quieras pegar', 1300); return; }
-  if (!G.aim || !G.aim.ok) { toast('Fuera de alcance', 1100); return; }
-  if (G.mode === 'war' && G.net && NET.role === 'guest') { if (G.active.cool > 0) toast('Recargando…', 600); else netSendFire(); return; }
+  if (!G.aim) { toast('Apunta con el ratón a donde quieras disparar', 1300); return; }
+  if (G.mode === 'war' && G.net && NET.role === 'guest') { if (readyToFire(G.active)) netSendFire(); else reloadNag(); return; }
   if (G.mode === 'war') { warTryFire(); return; }
   fire(G.aim.v, G.aim.from);
 }
@@ -1326,11 +1402,13 @@ function endTurn() {
 }
 
 function gameOver(winner) {
-  G.mode = 'over'; G.active = null; renderTeams();
-  if (G.net && NET.role === 'host') netSend({ type: 'over', winner });
+  // El anfitrión manda antes el último estado (así el rival ve caer el último piloto)
+  if (G.net && NET.role === 'host') { NET.sendT = 1; netHostTick(0); netSend({ type: 'over', winner }); }
+  G.mode = 'over'; G.active = null; G.firing = false; renderTeams();
   const title = G.net ? (winner === G.myTeam ? '¡Ganaste!' : winner ? 'Perdiste' : '¡Empate!') : winner ? (G.vsCPU ? (winner === 'red' ? '¡Ganaste!' : 'Gana la CPU') : `¡Gana ${TEAM_NAMES[winner]}!`) : '¡Empate!';
   $('turn-title').textContent = title; $('turn-sub').textContent = '';
   tune(winner ? [523, 659, 784, 1047] : [440, 440, 349], 'square', 0.13, 0.12);
+  if (G.net) { netGameOver(winner, title); return; }
   setTimeout(() => {
     document.querySelector('.menu-title').textContent = title;
     document.querySelector('.menu-lead').textContent = winner ? 'Todos los pilotos del otro equipo terminaron fuera de sus cabinas.' : 'No quedó ningún piloto sentado.';
@@ -1349,6 +1427,7 @@ function openPicker() {
   if (!THUMBS) THUMBS = makeThumbs();
   $('menu').hidden = true;
   $('picker').hidden = false;
+  $('picker-back').textContent = 'Volver';
   pickerFor('red');
 }
 
@@ -1364,13 +1443,14 @@ $('maps').addEventListener('click', (e) => {
   mapChoice = b.dataset.map; knock(2, 1.2, 1); renderMaps();
 });
 
-function pickerFor(team) {
+function pickerFor(team, slots = []) {
   picker.team = team;
-  picker.slots = [];
+  picker.slots = [...slots];
   renderMaps();
   $('picker-title').textContent = G.vsCPU ? 'Elige tus robots' : `Equipo ${TEAM_NAMES[team]}: elige tus robots`;
   $('picker-title').style.color = team === 'red' ? '#ff8a7e' : '#8fb8ff';
   renderPicker();
+  netPickerNote();
 }
 
 const pips = (n) => `<span class="pips">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
@@ -1384,7 +1464,12 @@ function renderPicker() {
       <span class="design-desc">${d.desc}</span>
       <span class="stat"><span class="label">Altura</span>${pips(d.altura)}</span>
       ${d.custom ? `<span class="stat"><span class="label">Bloques</span><span>${d.count}</span></span>` : `<span class="stat"><span class="label">Aguante</span>${pips(d.aguante)}</span>`}
-    </button>`).join('');
+    </button>`).join('') + `
+    <button class="design new" type="button" data-new="1">
+      <span class="plus" aria-hidden="true">+</span>
+      <span class="design-name">Crear robot</span>
+      <span class="design-desc">Diséñalo en el Taller y vuelve aquí para usarlo.</span>
+    </button>`;
   $('slots').innerHTML = [0, 1].map((i) => picker.slots[i]
     ? `<button class="slot filled" type="button" data-slot="${i}" aria-label="Quitar ${esc(DESIGNS[picker.slots[i]].name)}">${i + 1}. ${esc(DESIGNS[picker.slots[i]].name)} ✕</button>`
     : `<span class="slot">${i + 1}. Sin elegir</span>`).join('');
@@ -1392,6 +1477,7 @@ function renderPicker() {
 }
 
 $('designs').addEventListener('click', (e) => {
+  if (e.target.closest('[data-new]')) { ensureAudio(); openBuilder('picker'); return; }
   const btn = e.target.closest('.design');
   if (!btn || picker.slots.length >= 2) return;
   picker.slots.push(btn.dataset.key);
@@ -1404,7 +1490,11 @@ $('slots').addEventListener('click', (e) => {
   picker.slots.splice(Number(btn.dataset.slot), 1);
   renderPicker();
 });
-$('picker-back').addEventListener('click', () => { $('picker').hidden = true; $('menu').hidden = false; });
+$('picker-back').addEventListener('click', () => {
+  // En red: tras una partida vuelve a la pantalla de revancha; antes de la primera, sale de la sala
+  if (G.net) { if (NET.played) netShowResult(); else netLeave(); return; }
+  $('picker').hidden = true; $('menu').hidden = false;
+});
 $('picker-ok').addEventListener('click', () => {
   G.picks[picker.team] = [...picker.slots];
   if (G.net) { netPicksDone(); return; }
@@ -1728,9 +1818,10 @@ function saveDesign() {
   if (i >= 0) CUSTOMS[i] = entry; else CUSTOMS.push(entry);
   const stored = persistCustoms();
   registerCustoms(); fillStartSelect();
-  B.editingId = id; $('b-delete').hidden = false; $('b-start').value = 'c_' + id;
+  B.editingId = id; B.savedKey = 'c_' + id; $('b-delete').hidden = false; $('b-start').value = 'c_' + id;
   const skipped = B.blocks.length - blocks.length;
-  status((stored ? `Guardado "${name}". Aparecerá al elegir robots antes de una partida.` : `Guardado "${name}" solo mientras esta página siga abierta: este navegador no permite guardar datos.`)
+  const where = B.returnTo === 'picker' ? 'Pulsa «Volver a elegir» y ya estará elegido.' : 'Aparecerá al elegir robots antes de una partida.';
+  status((stored ? `Guardado "${name}". ${where}` : `Guardado "${name}" solo mientras esta página siga abierta: este navegador no permite guardar datos.`)
     + (skipped ? ` ${skipped} bloque${skipped > 1 ? 's' : ''} suelto${skipped > 1 ? 's' : ''} no se ${skipped > 1 ? 'guardaron' : 'guardó'}.` : ''));
   tune([523, 784], 'triangle', 0.12, 0.12);
 }
@@ -1770,8 +1861,13 @@ function nextPose() {
   if (B.last) hoverBuild(B.last);
 }
 
-function openBuilder() {
-  $('menu').hidden = true;
+// returnTo = 'picker': se entra desde la pantalla de elegir robots (o la revancha) y al salir se vuelve ahí
+function openBuilder(returnTo = null) {
+  B.returnTo = returnTo; B.savedKey = null;
+  B.pickerState = returnTo === 'picker'
+    ? { team: picker.team, slots: [...picker.slots], title: $('picker-title').textContent, back: $('picker-back').textContent } : null;
+  if (G.net) NET.stage = 'build';
+  for (const id of ['menu', 'picker', 'result']) $(id).hidden = true;
   clearWorld();
   G.mode = 'build'; G.active = null;
   document.body.classList.add('building');
@@ -1779,6 +1875,7 @@ function openBuilder() {
   buildDeco.visible = true; fan.visible = false;
   B.blocks = []; B.extra = []; B.die = null; B.undo = []; B.editingId = null;
   $('b-name').value = 'Mi robot'; $('b-delete').hidden = true;
+  $('b-exit').textContent = returnTo === 'picker' ? 'Volver a elegir' : 'Salir';
   fillStartSelect(); setTool('block'); updateCount();
   status('Empieza por la base: haz clic en la mesa. El frente del robot es la flecha amarilla.');
 }
@@ -1790,7 +1887,20 @@ function exitBuilder() {
   document.body.classList.remove('building');
   G.mode = 'menu';
   setupMatch(); renderTeams();
-  $('menu').hidden = false;
+  if (B.returnTo === 'picker') backToPicker();
+  else $('menu').hidden = false;
+}
+// Vuelve a elegir robots con lo que ya tenías elegido y el robot que acabas de guardar ya puesto el primero
+function backToPicker() {
+  const st = B.pickerState;
+  if (G.net && NET.peerGone) { netToLobby(NET.peerGone); return; }
+  if (!THUMBS) THUMBS = makeThumbs();
+  let slots = st.slots.filter((k) => DESIGNS[k]);
+  if (B.savedKey && DESIGNS[B.savedKey]) slots = [B.savedKey, ...slots].slice(0, 2);
+  if (G.net) NET.stage = 'pick';
+  $('picker').hidden = false;
+  pickerFor(st.team, slots);
+  $('picker-title').textContent = st.title; $('picker-back').textContent = st.back;
 }
 
 for (const b of document.querySelectorAll('#builder [data-tool]')) b.addEventListener('click', () => setTool(b.dataset.tool));
@@ -1871,6 +1981,7 @@ function updateCpu(dt) {
 // ---------- Guerra total: sin turnos, todos disparan a la vez ----------
 const WAR_RELOAD = 2.5;          // recarga de cada robot tuyo (s)
 const WAR_CPU_RELOAD = [4.5, 6.5];
+const WAR_BURST = 3;             // cada disparo de un jugador es una ráfaga de 3 bloques
 const WAR_MAX_SHOTS = 30;        // bloques disparados que se quedan en la mesa
 
 function setWind(s = Math.pow(Math.random(), 0.8)) {
@@ -1883,14 +1994,15 @@ function startWar() {
   G.mode = 'war'; G.team = G.myTeam; G.shots = []; G.windT = 0; G.walkLock = 0; G.timer = 999;
   setWind(rand(0, 0.4));
   G.active = robots.find((r) => r.team === G.myTeam && r.alive);
-  for (const r of robots) r.cool = r.team === G.myTeam || G.net ? 0 : rand(4, 6);
-  aimAtNearestEnemy();
-  G.viewYaw = G.yaw; G.camOffset = 0; G.arc = 0.35; G.target = null; G.locked = false; G.aim = null;
+  for (const r of robots) { r.cool = r.team === G.myTeam || G.net ? 0 : rand(4, 6); r.burst = 0; }
+  aimAtNearestEnemy(); faceCamera();
+  G.arc = 0.35; G.target = null; G.air = null; G.locked = false; G.aim = null;
   G.walkLeft = WALK_BUDGET; G.moved = false; G.ai = null;
-  $('turn-title').textContent = '¡Guerra total!';
+  const title = G.net && NET.played ? '¡Revancha!' : '¡Guerra total!';
+  $('turn-title').textContent = title;
   $('turn-title').style.color = '#ffb08a';
   renderTeams();
-  toast('¡Guerra total!', 1400, '#ffb08a');
+  toast(title, 1400, '#ffb08a');
   tune([392, 523, 659], 'square', 0.1, 0.12);
 }
 
@@ -1916,12 +2028,41 @@ function warFire(robot, v, from) {
   whoosh(robot.team === 'red' ? 0.6 : 0.35);
 }
 
+// ---------- Ráfagas: el primer bloque sale ya y los otros dos detrás, por el mismo sitio ----------
+// La recarga empieza con el primer disparo. `next` da la velocidad y el punto de salida de cada bloque.
+const readyToFire = (r) => !!r && r.alive && (r.cool || 0) <= 0 && !(r.burst > 0);
+// Tiempo entre bloques: el anterior tiene que haberse apartado (un bloque mide 3 de largo)
+const burstGap = (v) => clamp(3.6 / v.length(), 0.1, 0.4);
+// Un poco de dispersión para que la ráfaga no sea una sola línea
+function spread(v) {
+  return v.clone().applyEuler(new THREE.Euler(rand(-1, 1) * 0.012, rand(-1, 1) * 0.012, rand(-1, 1) * 0.012)).multiplyScalar(rand(0.99, 1.01));
+}
+function startBurst(robot, next, reload) {
+  const s = next();
+  if (!s) return false;
+  warFire(robot, s.v, s.from);
+  Object.assign(robot, { cool: reload, burst: WAR_BURST - 1, burstT: burstGap(s.v), burstNext: next, burstV: s.v });
+  return true;
+}
+function updateBursts(dt) {
+  for (const r of robots) {
+    if (!(r.burst > 0)) continue;
+    if (!r.alive) { r.burst = 0; continue; }
+    r.burstT -= dt;
+    if (r.burstT > 0) continue;
+    const s = r.burstNext() || { v: r.burstV, from: spawnPoint(r) };
+    const v = spread(s.v);
+    warFire(r, v, s.from);
+    r.burst--; r.burstT = burstGap(v);
+  }
+}
+
 function warTryFire() {
   const r = G.active;
   if (!r) return;
-  if (r.cool > 0) { toast('Recargando…', 600); return; }
-  warFire(r, G.aim.v, G.aim.from);
-  r.cool = WAR_RELOAD;
+  if (!readyToFire(r)) { reloadNag(); return; }
+  // Cada bloque de la ráfaga sale hacia donde apuntes en ese momento
+  startBurst(r, () => (G.active === r && G.aim ? { v: G.aim.v.clone(), from: G.aim.from.clone() } : null), WAR_RELOAD);
 }
 
 function updateWar(dt) {
@@ -1930,9 +2071,10 @@ function updateWar(dt) {
   if (G.windT > 12) { G.windT = 0; setWind(); toast('Cambió el viento', 900); if (G.net) netEvent({ e: 't', text: 'Cambió el viento', ms: 900 }); }
   G.walkLock = Math.max(0, G.walkLock - dt);
   for (const r of robots) r.cool = Math.max(0, (r.cool || 0) - dt);
+  updateBursts(dt);
 
-  // Disparo continuo mientras mantienes el clic
-  if (G.firing && canControl() && G.active && G.active.cool <= 0 && G.aim && G.aim.ok) warTryFire();
+  // Mantener el clic: dispara una ráfaga cada vez que el robot recarga
+  if (G.firing && canControl() && readyToFire(G.active) && G.aim) warTryFire();
 
   // La computadora camina por la mesa y dispara con cada robot cuando recarga
   const redAlive = robots.some((r) => r.team === 'red' && r.alive);
@@ -1941,9 +2083,10 @@ function updateWar(dt) {
     if (r.team !== 'blue') continue;
     if (!r.alive) { cpuStopWalk(r); continue; }
     updateCpuWalk(r, dt);
-    if (r.cool > 0) continue;
+    if (!readyToFire(r)) continue;
     const plan = planCpuShot(r);
     if (!plan.inRange) { r.cool = 0.8; if (!r.walk) cpuStartWalk(r, true); continue; }
+    // La CPU sigue tirando de a un bloque (con ráfagas sería el triple de difícil)
     cpuStopWalk(r);
     warFire(r, aimDir(plan.yaw, plan.pitch).multiplyScalar(shotSpeed(plan.power)), spawnPoint(r));
     r.cool = rand(...WAR_CPU_RELOAD);
@@ -1969,7 +2112,7 @@ function updateWar(dt) {
   if (G.active && !G.active.alive) {
     endWalk();
     const next = robots.find((r) => r.team === G.myTeam && r.alive);
-    if (next) { G.active = next; G.target = null; G.locked = false; G.viewYaw = G.yaw; G.camOffset = 0; renderTeams(); }
+    if (next) { G.active = next; G.target = null; G.air = null; G.locked = false; G.camFollow = 0; renderTeams(); }
   }
   const blueAlive = robots.some((r) => r.team === 'blue' && r.alive);
   if (!redAlive || !blueAlive) { endWalk(); if (G.remote) endWalk(G.remote); robots.forEach(cpuStopWalk); gameOver(redAlive ? 'red' : blueAlive ? 'blue' : null); }
@@ -1978,7 +2121,49 @@ function updateWar(dt) {
 function warSub() {
   const r = G.active;
   if (!r) return '';
-  return r.cool > 0 ? `${r.short} · recargando ${r.cool.toFixed(1)} s` : `${r.short} · ¡listo para disparar!`;
+  return readyToFire(r) ? `${r.short} · ¡listo para disparar!` : r.burst > 0 ? `${r.short} · ¡ráfaga!` : `${r.short} · recargando ${(r.cool || 0).toFixed(1)} s`;
+}
+
+// ---------- Munición a la vista: anillo de recarga en la mira, balas y barra abajo ----------
+const RING = 2 * Math.PI * 24;   // perímetro del anillo de la mira
+let wasReady = true, nagT = 0;
+function setRing(prog, state) {
+  $('ch-ring').setAttribute('stroke-dasharray', `${(prog * RING).toFixed(1)} ${RING.toFixed(1)}`);
+  $('crosshair').classList.toggle('ready', state === 'ready');
+  $('crosshair').classList.toggle('reloading', state === 'reloading');
+}
+function updateAmmoHud() {
+  const human = canControl(), r = G.active, war = human && G.mode === 'war' && r && r.alive;
+  $('crosshair').hidden = !(human && mouseLocked() && !G.overview);
+  $('lock-hint').hidden = !(human && !G.overview && lockHint());
+  $('ammo').hidden = $('ch-ammo').hidden = !war;
+  if (!war) { setRing(1, ''); $('btn-fire').style.setProperty('--reload', 1); wasReady = true; return; }
+  const cool = r.cool || 0, burst = r.burst || 0, ready = cool <= 0 && !burst;
+  const loaded = burst > 0 ? burst : ready ? WAR_BURST : 0;
+  const prog = ready ? 1 : clamp(1 - cool / WAR_RELOAD, 0, 1);
+  for (const id of ['ammo-pips', 'ch-ammo']) [...$(id).children].forEach((pip, i) => pip.classList.toggle('on', i < loaded));
+  $('reload-fill').style.width = `${prog * 100}%`;
+  $('ammo-text').textContent = ready ? '¡Listo! Ráfaga de 3' : burst > 0 ? '¡Fuego!' : `Recargando ${cool.toFixed(1)} s`;
+  $('ammo').classList.toggle('ready', ready);
+  $('ammo').classList.toggle('reloading', !ready);
+  $('btn-fire').style.setProperty('--reload', prog.toFixed(3));
+  setRing(prog, ready ? 'ready' : 'reloading');
+  if (ready && !wasReady) {
+    const ch = $('crosshair');
+    ch.classList.remove('pulse'); void ch.offsetWidth; ch.classList.add('pulse');
+    if (!G.firing) tune([660, 990], 'triangle', 0.05, 0.06);   // "clic-clac": ya puedes disparar
+  }
+  wasReady = ready;
+}
+// Disparar sin haber recargado: la munición tiembla y suena en vacío
+function reloadNag() {
+  const now = performance.now();
+  if (now - nagT < 400) return;
+  nagT = now;
+  const el = $('ammo');
+  el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope');
+  knock(1.2, 0.5, 0.5);
+  toast('Recargando…', 600);
 }
 
 // ---------- La computadora también camina ----------
@@ -2035,17 +2220,20 @@ function updateCpuWalk(r, dt) {
 // ---------- Multijugador en red (Guerra total 1 contra 1) ----------
 // Quien crea la partida (anfitrión) calcula toda la física. El invitado le manda sus controles
 // y recibe, 30 veces por segundo, dónde está cada pieza. Así los dos ven exactamente lo mismo.
+// Al terminar, los dos siguen en la misma sala y pueden pedir la revancha tantas veces como quieran.
 const NET = {
   ws: null, role: null, code: '', side: 'red', ready: false,
   input: { fwd: 0, side: 0, turn: 0 }, remoteInput: { fwd: 0, side: 0, turn: 0 }, fireQueue: [],
   myPicks: null, peerPicks: null, events: [], known: new Set(), sendT: 0, fullT: 0, lastFire: 0, lastKnock: 0,
+  stage: null,   // lobby · pick (eligiendo) · wait (esperando al rival) · play · result · build (en el taller)
+  score: { me: 0, rival: 0 }, played: false, peerAgain: false, peerGone: '', lastSlots: [],
 };
 const r3 = (v) => Math.round(v * 1000) / 1000, r4 = (v) => Math.round(v * 10000) / 10000;
 const other = (team) => (team === 'red' ? 'blue' : 'red');
 
 function netSend(msg) { if (NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(msg)); }
 function netEvent(e) {
-  if (!G.net || NET.role !== 'host') return;
+  if (!G.net || NET.role !== 'host' || G.mode !== 'war') return;
   if (e.e === 'k') { const now = performance.now(); if (now - NET.lastKnock < 30) return; NET.lastKnock = now; }
   NET.events.push(e);
 }
@@ -2059,11 +2247,12 @@ function netConnect() {
     if (NET.ws && NET.ws.readyState === 1) return resolve();
     const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     NET.ws = ws;
-    ws.onopen = () => resolve();
+    ws.onopen = () => { ws.wasOpen = true; resolve(); };
     ws.onerror = () => reject(new Error('sin conexión'));
     ws.onclose = () => {
+      if (NET.ws !== ws) return;   // una conexión vieja que ya cerramos nosotros
       NET.ws = null;
-      if (G.net && G.mode === 'war') netAbort('Se perdió la conexión con el servidor.');
+      if (ws.wasOpen) netPeerLeft('Se perdió la conexión con el servidor.');
     };
     ws.onmessage = (ev) => { try { netMessage(JSON.parse(ev.data)); } catch (err) { console.error(err); } };
   });
@@ -2071,14 +2260,44 @@ function netConnect() {
 
 function netAbort(msg) {
   endWalk(); if (G.remote) endWalk(G.remote);
-  G.net = false; G.remote = null; G.mode = 'over';
+  G.net = false; G.remote = null; G.mode = 'over'; G.firing = false;
+  NET.stage = null; NET.role = null;
   toast(msg, 2500);
-  $('picker').hidden = true; $('lobby').hidden = true;
+  for (const id of ['picker', 'lobby', 'result']) $(id).hidden = true;
   setTimeout(() => { $('menu').hidden = false; }, 1500);
+}
+
+// Salir de la sala: el rival recibe el aviso y tú vuelves al menú
+function netLeave() {
+  NET.stage = null; NET.role = null; NET.myPicks = NET.peerPicks = null;
+  G.net = false; G.remote = null;
+  const ws = NET.ws;
+  NET.ws = null;
+  if (ws) ws.close();
+  for (const id of ['lobby', 'picker', 'result']) $(id).hidden = true;
+  $('menu').hidden = false;
+}
+
+// El rival (o el servidor) ya no está: esta sala se terminó
+function netPeerLeft(msg) {
+  const stage = NET.stage;
+  if (!stage) return;
+  if (stage === 'play') { netAbort(msg); return; }
+  NET.role = null; NET.myPicks = NET.peerPicks = null; NET.peerGone = msg;
+  if (stage === 'result') { renderResult(); return; }
+  if (stage === 'build') { status(`${msg} Al salir del taller volverás a la sala.`); return; }
+  netToLobby(msg);
+}
+function netToLobby(msg) {
+  G.net = false; NET.stage = 'lobby'; NET.peerGone = '';
+  for (const id of ['picker', 'result']) $(id).hidden = true;
+  $('lobby').hidden = false; $('lobby-start').hidden = false; $('lobby-wait').hidden = true;
+  lobbyStatus(`${msg} Crea otra partida o únete a otra.`);
 }
 
 // ---------- Sala ----------
 function openLobby() {
+  NET.stage = 'lobby';
   $('menu').hidden = true; $('lobby').hidden = false;
   $('lobby-start').hidden = false; $('lobby-wait').hidden = true;
   lobbyStatus('Conectando con el servidor…');
@@ -2090,10 +2309,7 @@ for (const b of document.querySelectorAll('#lobby [data-side]')) b.addEventListe
   for (const o of document.querySelectorAll('#lobby [data-side]')) o.setAttribute('aria-pressed', String(o === b));
 });
 $('btn-net').addEventListener('click', () => { ensureAudio(); openLobby(); });
-$('net-back').addEventListener('click', () => {
-  if (NET.ws) NET.ws.close();
-  NET.role = null; $('lobby').hidden = true; $('menu').hidden = false;
-});
+$('net-back').addEventListener('click', netLeave);
 $('net-create').addEventListener('click', async () => {
   try { await netConnect(); } catch { lobbyStatus('No se pudo conectar con el servidor.'); return; }
   NET.role = 'host'; netSend({ type: 'create' });
@@ -2106,21 +2322,34 @@ $('net-join').addEventListener('click', async () => {
 });
 $('net-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('net-join').click(); });
 
-function netToPicker(team) {
+// Elegir robots: al entrar en la sala, o en cada revancha (con los robots de la vez anterior ya puestos)
+function netToPicker(team, rematch = false) {
   G.net = true; G.war = true; G.vsCPU = false; G.myTeam = team;
-  NET.myPicks = null; NET.peerPicks = null;
-  $('lobby').hidden = true;
+  NET.myPicks = null; NET.stage = 'pick';
+  if (!rematch) Object.assign(NET, { peerPicks: null, score: { me: 0, rival: 0 }, played: false, peerAgain: false, peerGone: '', lastSlots: [] });
+  $('lobby').hidden = true; $('result').hidden = true;
   if (!THUMBS) THUMBS = makeThumbs();
   $('picker').hidden = false;
-  pickerFor(team);
-  $('picker-title').textContent = `Eres el equipo ${TEAM_NAMES[team]}: elige tus robots`;
+  pickerFor(team, rematch ? NET.lastSlots.filter((k) => DESIGNS[k]) : []);
+  $('picker-title').textContent = rematch ? `Revancha: elige tus robots (equipo ${TEAM_NAMES[team]})` : `Eres el equipo ${TEAM_NAMES[team]}: elige tus robots`;
+  $('picker-back').textContent = rematch ? 'Volver' : 'Salir de la sala';
+}
+function netPickerNote() {
+  $('picker-note').textContent = !G.net ? '' : NET.peerPicks ? 'Tu rival ya eligió: en cuanto pulses Listo empieza la partida.'
+    : NET.peerAgain ? 'Tu rival también está eligiendo robots…' : '';
+}
+function netNotes() {
+  if (NET.stage === 'result') renderResult();
+  if (NET.stage === 'pick') netPickerNote();
 }
 
 // Cada robot elegido viaja como diseño completo (así también funcionan los del Taller)
 const pickData = (keys) => keys.map((k) => ({ design: (DESIGNS[k] || NET_DESIGNS[k]).make() }));
 
 function netPicksDone() {
+  NET.lastSlots = [...picker.slots];
   NET.myPicks = pickData(G.picks[G.myTeam]);
+  NET.stage = 'wait';
   $('picker').hidden = true; $('lobby').hidden = false;
   $('lobby-start').hidden = true; $('lobby-wait').hidden = false;
   if (NET.role === 'guest') { netSend({ type: 'picks', picks: NET.myPicks }); lobbyStatus('Listo. Esperando a que el anfitrión elija…'); }
@@ -2146,7 +2375,8 @@ function netStart(setup) {
   G.picks = { red: ['n_red_0', 'n_red_1'], blue: ['n_blue_0', 'n_blue_1'] };
   G.map = setup.map; G.zs = setup.zs;
   G.net = true; G.war = true; G.vsCPU = false;
-  $('lobby').hidden = true; $('picker').hidden = true; $('menu').hidden = true;
+  NET.stage = 'play'; NET.peerAgain = false; NET.peerPicks = null;
+  for (const id of ['lobby', 'picker', 'menu', 'result']) $(id).hidden = true;
   setupMatch();
   G.shot = null; G.overview = false;
   startWar();
@@ -2158,6 +2388,38 @@ function netStart(setup) {
       walking: false, walkLock: 0, walkLeft: WALK_BUDGET, moved: false, walkPhase: 0, blockers: [] };
   } else G.remote = null;
 }
+
+// ---------- Fin de la partida y revancha ----------
+function netGameOver(winner, title) {
+  NET.stage = 'result'; NET.played = true;
+  NET.myPicks = NET.peerPicks = null; NET.peerAgain = false; NET.fireQueue = [];
+  if (winner === G.myTeam) NET.score.me++; else if (winner) NET.score.rival++;
+  G.remote = null;
+  $('result-title').textContent = title;
+  // Un momento para ver cómo quedó la mesa antes de la pantalla de revancha
+  setTimeout(() => { if (NET.stage === 'result') netShowResult(); }, 2200);
+}
+function netShowResult() {
+  NET.stage = 'result';
+  $('picker').hidden = true; $('result').hidden = false;
+  renderResult();
+}
+function renderResult() {
+  const s = NET.score, gone = NET.peerGone;
+  $('result-score').textContent = `Tú ${s.me} – ${s.rival} Rival`;
+  $('btn-rematch').hidden = $('btn-rematch-build').hidden = !!gone;
+  $('result-status').textContent = gone || (NET.peerPicks ? 'Tu rival ya eligió sus robots: ¡te espera para la revancha!'
+    : NET.peerAgain ? 'Tu rival quiere la revancha y está eligiendo robots.'
+    : '¿Otra? Vuelve a elegir robots o crea uno nuevo en el Taller.');
+}
+function netRematch() {
+  if (NET.peerGone) return;
+  netSend({ type: 'again' });   // solo avisa al rival: la partida empieza cuando los dos eligen
+  netToPicker(G.myTeam, true);
+}
+$('btn-rematch').addEventListener('click', () => { ensureAudio(); netRematch(); });
+$('btn-rematch-build').addEventListener('click', () => { ensureAudio(); netRematch(); openBuilder('picker'); });
+$('btn-leave').addEventListener('click', netLeave);
 
 function netMessage(m) {
   switch (m.type) {
@@ -2175,16 +2437,14 @@ function netMessage(m) {
     case 'lobby':         // (invitado) el anfitrión eligió equipo: nos toca el otro
       netToPicker(other(m.hostTeam));
       break;
-    case 'picks': NET.peerPicks = m.picks; netMaybeStart(); break;
+    case 'picks': NET.peerPicks = m.picks; netMaybeStart(); netNotes(); break;
+    case 'again': NET.peerAgain = true; netNotes(); break;
     case 'setup': netStart(m); break;
     case 'snap': netGuestSnap(m); break;
     case 'in': NET.remoteInput = { fwd: m.f, side: m.s, turn: m.t }; netRemoteActive(m.a); break;
     case 'fire': NET.fireQueue.push(m); break;
-    case 'over': if (G.net && G.mode === 'war') { endWalk(); gameOver(m.winner); G.net = false; } break;
-    case 'peer-left':
-      if (G.net && G.mode === 'war') netAbort('Tu rival se desconectó.');
-      else if (NET.role) { lobbyStatus('Tu rival se fue de la sala.'); $('picker').hidden = true; $('lobby').hidden = false; }
-      break;
+    case 'over': if (G.net && G.mode === 'war') { endWalk(); gameOver(m.winner); } break;
+    case 'peer-left': netPeerLeft('Tu rival se fue de la sala.'); break;
   }
 }
 
@@ -2208,11 +2468,13 @@ function netHostWar(dt) {
   for (const f of NET.fireQueue) {
     netRemoteActive(f.a);
     const r = R.active;
-    if (!r || !r.alive || r.cool > 0) continue;
-    const from = spawnPoint(r), sol = solveShot(from, new THREE.Vector3(...f.p), clamp(f.arc, 0, 1));
-    if (!sol) continue;
-    warFire(r, sol.v, from);
-    r.cool = WAR_RELOAD;
+    if (!readyToFire(r)) continue;
+    // Ráfaga hacia el punto que eligió el rival (o directa, si apuntó al aire)
+    const P = new THREE.Vector3(...f.p), arc = clamp(f.arc, 0, 1);
+    startBurst(r, () => {
+      const from = spawnPoint(r), sol = (!f.air && solveShot(from, P, arc)) || directShot(from, P);
+      return { v: sol.v, from };
+    }, WAR_RELOAD);
   }
   NET.fireQueue = [];
 }
@@ -2236,7 +2498,7 @@ function netHostTick(dt) {
   }
   netSend({
     type: 'snap', b, ev,
-    r: robots.map((r) => [r.alive ? 1 : 0, r3(r.cool || 0), r4(r.yaw || 0)]),
+    r: robots.map((r) => [r.alive ? 1 : 0, r3(r.cool || 0), r4(r.yaw || 0), r.burst || 0]),
     ra: G.remote ? robots.indexOf(G.remote.active) : -1,
     w: [r3(G.wind.x), r3(G.wind.z), r3(G.wind.strength), r3(G.wind.angle)],
   });
@@ -2265,13 +2527,13 @@ function netGuestSnap(m) {
     if (t.fresh) { syncMesh(t); t.fresh = false; }
   }
   let changed = false;
-  m.r.forEach(([alive, cool, yaw], i) => {
+  m.r.forEach(([alive, cool, yaw, burst], i) => {
     const r = robots[i];
     if (!r) return;
     if (r.alive !== !!alive) { r.alive = !!alive; changed = true; }
-    r.cool = cool; r.yaw = yaw;
+    r.cool = cool; r.yaw = yaw; r.burst = burst || 0;
   });
-  if (G.active && !G.active.alive && robots[m.ra] && robots[m.ra].alive) { G.active = robots[m.ra]; G.target = null; changed = true; }
+  if (G.active && !G.active.alive && robots[m.ra] && robots[m.ra].alive) { G.active = robots[m.ra]; G.target = null; G.air = null; G.camFollow = 0; changed = true; }
   if (changed) renderTeams();
   const [wx, wz, s, a] = m.w;
   G.wind = { x: wx, z: wz, strength: s, angle: a }; fanAngleTarget = a;
@@ -2285,14 +2547,15 @@ function netGuestFrame(dt) {
   if (NET.sendT < 1 / 20) return;
   NET.sendT = 0;
   netSend({ type: 'in', f: NET.input.fwd, s: NET.input.side, t: NET.input.turn, a: robots.indexOf(G.active) });
-  // Mantener el clic: dispara cada vez que el robot recarga
-  if (G.firing && G.active && G.active.cool <= 0 && G.aim && G.aim.ok && performance.now() - NET.lastFire > 500) netSendFire();
+  // Mantener el clic: dispara una ráfaga cada vez que el robot recarga
+  if (G.firing && readyToFire(G.active) && G.aim && performance.now() - NET.lastFire > 500) netSendFire();
 }
 
 function netSendFire() {
-  if (!G.target || !G.active) return;
+  const p = G.target || G.air;
+  if (!p || !G.active) return;
   NET.lastFire = performance.now();
-  netSend({ type: 'fire', p: [r3(G.target.x), r3(G.target.y), r3(G.target.z)], arc: r3(G.arc), a: robots.indexOf(G.active) });
+  netSend({ type: 'fire', p: [r3(p.x), r3(p.y), r3(p.z)], arc: r3(G.arc), air: G.target ? 0 : 1, a: robots.indexOf(G.active) });
 }
 
 // ---------- Bucle, cámara y controles ----------
@@ -2350,8 +2613,13 @@ for (const a of [0, 1, 2, 3]) {
 reticle.traverse((o) => { o.renderOrder = 20; });
 const blockMark = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.4, 24), new THREE.MeshBasicMaterial({ color: 0xff5a4a, transparent: true, depthTest: false, side: THREE.DoubleSide }));
 blockMark.renderOrder = 21;
-scene.add(reticle, blockMark);
+// Flecha en el suelo: hacia dónde mira tu robot (W lo lleva hacia ahí; la cámara ya no gira con él)
+const facingArrow = new THREE.Mesh(
+  new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(1.1, 0), new THREE.Vector2(-0.6, 0.75), new THREE.Vector2(-0.2, 0), new THREE.Vector2(-0.6, -0.75)])).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0xf2b134, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+scene.add(reticle, blockMark, facingArrow);
 const aimRay = new THREE.Raycaster(), pathRay = new THREE.Raycaster();
+const CENTER = new THREE.Vector2(0, 0);
 
 function sceneTargets(exclude) {
   const list = things.filter((t) => !exclude(t)).map((t) => t.mesh);
@@ -2359,20 +2627,30 @@ function sceneTargets(exclude) {
   if (top) list.push(top);
   return list;
 }
-function pickAim(e) {
+function toNdc(e) {
   const rect = canvas.getBoundingClientRect();
-  aimRay.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
+  return new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+}
+const hitNormal = (hit) => (hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0));
+// Lo que hay en ese punto de la pantalla. Si no toca ninguna superficie, se apunta al aire en esa dirección.
+function pickAim(ndc) {
+  aimRay.setFromCamera(ndc, camera);
   const hit = aimRay.intersectObjects(sceneTargets((t) => t.robot && t.robot.team === G.team), true)[0];
-  if (!hit) return null;
-  const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0);
-  return { p: hit.point.clone(), n };
+  if (!hit) return { air: aimRay.ray.at(400, new THREE.Vector3()) };
+  return { p: hit.point.clone(), n: hitNormal(hit) };
 }
-function hoverAim(e) {
+function setAim(ndc) {
   if (G.locked) return;
-  const h = pickAim(e);
-  G.target = h ? h.p : null; G.targetN = h ? h.n : null;
+  const h = pickAim(ndc);
+  G.target = h.p || null; G.targetN = h.n || null; G.air = h.air || null;
 }
+const hoverAim = (e) => setAim(toNdc(e));
 
+function placeReticle(p, nrm) {
+  reticle.visible = true;
+  reticle.position.copy(p).addScaledVector(nrm, 0.04);
+  reticle.lookAt(reticle.position.clone().add(nrm));
+}
 function updatePreview() {
   pathDots.visible = reticle.visible = blockMark.visible = false;
   G.blocked = false;
@@ -2389,44 +2667,58 @@ function updatePreview() {
       if (p.y < TABLE.top) break;
     }
   } else {
-    if (!G.target) return;
-    reticle.visible = true;
-    const nrm = G.targetN || up(1);
-    reticle.position.copy(G.target).addScaledVector(nrm, 0.04);
-    reticle.lookAt(reticle.position.clone().add(nrm));
-    if (!G.aim || !G.aim.ok) { retMat.color.set(0xff5a4a); return; }
-    // Recorrido completo, paso a paso igual que el motor de física
-    const { from, n } = G.aim, v = G.aim.v.clone(), p = from.clone(), prev = from.clone();
+    if (!G.aim) return;
+    // Recorrido completo, paso a paso igual que el motor de física.
+    // Tiro bombeado: avisa si algo se cruza antes del objetivo. Tiro directo: marca dónde cae.
+    const { from, n, direct } = G.aim, v = G.aim.v.clone(), p = from.clone(), prev = from.clone();
     const stride = Math.max(1, Math.ceil(n / PATH_N));
     const meshes = sceneTargets((t) => t.robot === G.active);
+    let land = null;
     for (let i = 1; i <= n; i++) {
       v.addScaledVector(a, FIXED_DT); p.addScaledVector(v, FIXED_DT);
-      if (i % stride && i !== n) continue;
-      if (!G.blocked) {
+      const last = i === n || p.y < FLOOR_Y;
+      if (i % stride && !last) continue;
+      if (!land) {
         const seg = p.clone().sub(prev), len = seg.length();
         pathRay.set(prev, seg.divideScalar(len || 1)); pathRay.far = len;
         const hit = len > 1e-4 ? pathRay.intersectObjects(meshes, true)[0] : null;
-        if (hit && hit.point.distanceTo(G.target) > 1.2) {
-          G.blocked = true;
-          blockMark.position.copy(hit.point); blockMark.lookAt(camera.position); blockMark.visible = true;
-        }
+        if (hit && (direct || hit.point.distanceTo(G.target) > 1.2)) land = hit;
       }
-      if (count < PATH_N) { arr[count * 3] = p.x; arr[count * 3 + 1] = p.y; arr[count * 3 + 2] = p.z; count++; }
+      const dot = land && direct ? land.point : p;
+      if (count < PATH_N) { arr[count * 3] = dot.x; arr[count * 3 + 1] = dot.y; arr[count * 3 + 2] = dot.z; count++; }
       prev.copy(p);
+      if (last || (land && direct)) break;
     }
-    retMat.color.set(G.blocked ? 0xff9a3c : G.locked ? 0xffe9a8 : 0xf2b134);
+    if (direct) { if (land) placeReticle(land.point, hitNormal(land)); }
+    else {
+      placeReticle(G.target, G.targetN || up(1));
+      if (land) { G.blocked = true; blockMark.position.copy(land.point); blockMark.lookAt(camera.position); blockMark.visible = true; }
+    }
+    retMat.color.set(G.blocked ? 0xff9a3c : direct ? 0xffe9a8 : 0xf2b134);
   }
   pathDots.material.color.set(G.blocked ? 0xff9a3c : 0xf2b134);
   pathDots.geometry.setDrawRange(0, count);
   pathDots.geometry.attributes.position.needsUpdate = true;
   pathDots.visible = count > 0;
 }
+// Dónde se ve el piloto (el invitado lo suaviza entre paquetes de red)
+const pilotPos = (r) => (G.net && NET.role === 'guest' ? r.die.mesh.position : r.die.body.position);
+function updateFacing() {
+  const r = G.active;
+  facingArrow.visible = !!r && canControl() && !G.overview;
+  if (!facingArrow.visible) return;
+  const d = pilotPos(r), yaw = r.yaw || 0;
+  facingArrow.position.set(d.x + Math.cos(yaw) * 3.8, Math.max(TABLE.top, d.y - r.dieStartY) + 0.06, d.z - Math.sin(yaw) * 3.8);
+  facingArrow.rotation.set(0, yaw, 0);
+}
 
 const camPos = camera.position.clone(), camLook = new THREE.Vector3(0, 2, 0);
-let orbit = 0.6;
+let orbit = 0.6, camKey = '';
 const up = (y) => new THREE.Vector3(0, y, 0);
+const viewDir = (yaw, pitch) => new THREE.Vector3(Math.cos(pitch) * Math.cos(yaw), Math.sin(pitch), Math.cos(pitch) * Math.sin(yaw));
 function updateCamera(dt) {
   const want = new THREE.Vector3(), look = new THREE.Vector3();
+  let free = false;   // cámara del jugador: solo la gira el ratón
   if (G.mode === 'build') {
     const top = B.blocks.length ? unionBox(B.blocks).max.y : 0, fy = clamp(top * 0.45, 1.5, 7);
     want.set(Math.cos(B.camYaw) * Math.cos(B.camPitch) * B.camDist, fy + Math.sin(B.camPitch) * B.camDist, Math.sin(B.camYaw) * Math.cos(B.camPitch) * B.camDist);
@@ -2437,12 +2729,15 @@ function updateCamera(dt) {
   } else if (G.overview) {
     want.set(0, TABLE.hx * 1.55, TABLE.hz * 2.1); look.set(0, 0, 2);
   } else if ((G.mode === 'aim' || G.mode === 'war') && G.active) {
-    const p = G.active.die.body.position;
-    // La cámara va detrás del robot, mirando hacia donde mira él (más el giro que le des con el clic derecho)
-    G.viewYaw = -(G.active.yaw || 0) + G.camOffset;
-    const dh = new THREE.Vector3(Math.cos(G.viewYaw), 0, Math.sin(G.viewYaw)), side = new THREE.Vector3(-dh.z, 0, dh.x);
-    want.copy(p).addScaledVector(dh, -G.camDist).addScaledVector(side, G.camDist * 0.22).add(up(G.camDist * 0.55 + 2));
-    look.copy(p).addScaledVector(dh, 13).add(up(-1.5));
+    // Detrás del robot y siguiéndolo, pero sin girar con él: el ángulo lo decide el ratón
+    // (en el turno de la CPU, mira hacia donde apunta ella)
+    const cpu = isCpuTurn(), yaw = cpu ? G.yaw : G.camYaw, pitch = cpu ? CAM_PITCH0 : G.camPitch;
+    const p = pilotPos(G.active);
+    // Al mirar hacia arriba la cámara no baja: solo levanta la vista
+    const back = viewDir(yaw, Math.min(pitch, 0)), side = new THREE.Vector3(-Math.sin(yaw), 0, Math.cos(yaw));
+    want.copy(p).add(up(3.6)).addScaledVector(back, -G.camDist).addScaledVector(side, G.camDist * 0.22);
+    look.copy(want).addScaledVector(viewDir(yaw, pitch), 30);
+    free = !cpu;
   } else if (G.mode === 'flying' && G.shot) {
     const p = G.shot.body.position, v = G.shot.body.velocity;
     const vh = new THREE.Vector3(v.x, 0, v.z);
@@ -2460,8 +2755,17 @@ function updateCamera(dt) {
   const vw = window.innerWidth, vh = window.innerHeight;
   if (G.mode === 'build') camera.setViewOffset(vw, vh, vw > 700 ? -vw * 0.16 : 0, vw > 700 ? -vh * 0.03 : -vh * 0.16, vw, vh);
   else if (camera.view && camera.view.enabled) camera.clearViewOffset();
-  const k = 1 - Math.exp(-dt * (G.mode === 'flying' ? 5 : 3));
-  camPos.lerp(want, k); camLook.lerp(look, k);
+  // Al cambiar de modo o de robot la cámara viaja despacio; después sigue al ratón al momento
+  const key = `${G.mode}|${G.overview}|${robots.indexOf(G.active)}`;
+  if (key !== camKey) { camKey = key; G.camFollow = 0; }
+  G.camFollow = Math.min(1, G.camFollow + dt * 1.6);
+  const k = 1 - Math.exp(-dt * (free ? 3 + 22 * G.camFollow : G.mode === 'flying' ? 5 : 3));
+  camPos.lerp(want, k);
+  if (free) {
+    // La mira es el centro exacto de la pantalla: la vista apunta justo hacia donde dice el ratón
+    look.copy(camPos).addScaledVector(viewDir(G.camYaw, G.camPitch), 30);
+    if (G.camFollow >= 1) camLook.copy(look); else camLook.lerp(look, 1 - Math.exp(-dt * (3 + 57 * G.camFollow)));
+  } else camLook.lerp(look, k);
   camera.position.copy(camPos);
   if (G.shake > 0) camera.position.add(new THREE.Vector3(rand(-1, 1), rand(-0.6, 0.6), rand(-1, 1)).multiplyScalar(G.shake));
   const overTable = Math.abs(camera.position.x) < TABLE.hx + 1 && Math.abs(camera.position.z) < TABLE.hz + 1;
@@ -2475,8 +2779,32 @@ const KEYMAP = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDow
 const TOUCH_WALK = { up: 'mf', down: 'mb', left: 'ml', right: 'mr' };
 let touchWalk = false;
 const canControl = () => (G.mode === 'aim' || G.mode === 'war') && !isCpuTurn();
-function toggleView() { G.overview = !G.overview; $('btn-view').textContent = G.overview ? 'Vista del robot (V)' : 'Vista general (V)'; }
+const inMatch = () => G.mode === 'aim' || G.mode === 'war' || G.mode === 'flying' || G.mode === 'settle';
+function toggleView() {
+  G.overview = !G.overview;
+  if (G.overview) releaseMouse();   // en la vista general se apunta con el cursor
+  $('btn-view').textContent = G.overview ? 'Vista del robot (V)' : 'Vista general (V)';
+}
 function toggleSound() { audio.on = !audio.on; $('btn-sound').textContent = `Sonido: ${audio.on ? 'sí' : 'no'}`; }
+
+// Ratón capturado (pointer lock): moverlo gira la cámara y se apunta con la mira del centro.
+// En pantallas táctiles, o si el navegador no lo deja, se sigue apuntando con el cursor.
+const canLock = 'requestPointerLock' in canvas && !matchMedia('(pointer: coarse)').matches;
+let lockWorks = null;   // null: aún no se sabe · true: ya funcionó · false: este navegador no deja capturarlo
+const mouseLocked = () => document.pointerLockElement === canvas;
+const lockHint = () => canLock && lockWorks !== false && !mouseLocked();
+function lockMouse() {
+  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch { /* se comprueba abajo */ }
+  // Si nunca ha funcionado y no engancha, se deja de intentar: se apunta y dispara con el cursor
+  setTimeout(() => { if (!mouseLocked() && lockWorks !== true) lockWorks = false; }, 800);
+}
+function releaseMouse() { if (mouseLocked()) document.exitPointerLock(); }
+document.addEventListener('pointerlockchange', () => { if (mouseLocked()) lockWorks = true; else G.firing = false; });
+document.addEventListener('mousemove', (e) => {
+  if (!mouseLocked() || !canControl() || G.overview) return;
+  G.camYaw += clamp(e.movementX, -150, 150) * MOUSE_SENS;
+  G.camPitch = clamp(G.camPitch - clamp(e.movementY, -150, 150) * MOUSE_SENS, PITCH_MIN, PITCH_MAX);
+});
 
 addEventListener('keydown', (e) => {
   if (e.target && e.target.closest && e.target.closest('input, select, textarea')) return;
@@ -2495,52 +2823,63 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => {
   if (e.code in KEYMAP) keys.delete(KEYMAP[e.code]);
 });
-addEventListener('blur', () => keys.clear());
+addEventListener('blur', () => { keys.clear(); G.firing = false; });
 
 let drag = null;
+const raycaster = new THREE.Raycaster();
+// ¿Hay otro de tus robots (no el que manejas) en ese punto de la pantalla?
+function ownRobotAt(ndc) {
+  raycaster.setFromCamera(ndc, camera);
+  const mine = robots.filter((r) => r.team === G.team && r.alive && r !== G.active);
+  const hit = raycaster.intersectObjects(mine.flatMap((r) => [r.die.mesh, ...r.blocks.map((b) => b.mesh)]), false)[0];
+  return hit ? mine.find((r) => r.die.mesh === hit.object || r.blocks.some((b) => b.mesh === hit.object)) : null;
+}
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('pointerdown', (e) => {
   ensureAudio();
   drag = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: 0, button: e.button, touch: e.pointerType === 'touch' };
-  canvas.setPointerCapture(e.pointerId);
-  // En Guerra total, mantener el botón izquierdo dispara cada vez que el robot recarga
-  if (G.mode === 'war' && e.button === 0 && !drag.touch && canControl()) { hoverAim(e); G.firing = true; }
+  if (!mouseLocked()) try { canvas.setPointerCapture(e.pointerId); } catch { /* nada */ }
+  if (G.mode === 'build') return;
+  // Primer clic en la partida: el ratón pasa a mover la cámara (Esc lo suelta). Ese clic no dispara.
+  if (e.pointerType === 'mouse' && e.button === 0 && lockHint() && inMatch() && !G.overview) { drag.lockClick = true; lockMouse(); return; }
+  // En Guerra total, mantener el botón izquierdo dispara una ráfaga cada vez que el robot recarga
+  if (G.mode === 'war' && e.button === 0 && !drag.touch && canControl()) {
+    const at = mouseLocked() ? CENTER : toNdc(e);
+    if (!mouseLocked()) setAim(at);
+    if (!ownRobotAt(at)) G.firing = true;
+  }
 });
 canvas.addEventListener('pointermove', (e) => {
-  if (!drag || drag.id !== e.pointerId) return;
-  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-  drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (mouseLocked()) return;   // con el ratón capturado, la cámara la mueve 'mousemove'
+  const d = drag && drag.id === e.pointerId ? drag : null;
+  let dx = 0, dy = 0;
+  if (d) { dx = e.clientX - d.x; dy = e.clientY - d.y; d.x = e.clientX; d.y = e.clientY; d.moved += Math.abs(dx) + Math.abs(dy); }
   if (G.mode === 'build') {
-    if (drag.moved > 6) { B.camYaw += dx * 0.006; B.camPitch = clamp(B.camPitch + dy * 0.005, 0.12, 1.4); }
+    if (d && d.moved > 6) { B.camYaw += dx * 0.006; B.camPitch = clamp(B.camPitch + dy * 0.005, 0.12, 1.4); }
+    if (!drag || drag.moved < 6) hoverBuild(e);
     return;
   }
-  // Clic derecho (o un dedo) arrastrando: gira la cámara alrededor de tu robot
-  if ((drag.button === 2 || drag.touch) && drag.moved > 6 && G.mode !== 'menu' && G.mode !== 'over') G.camOffset += dx * 0.006;
+  // Clic derecho (o un dedo) arrastrando: también gira la cámara
+  const turning = d && (d.button === 2 || d.touch) && d.moved > 6;
+  if (turning && canControl() && !G.overview) { G.camYaw += dx * 0.006; G.camPitch = clamp(G.camPitch - dy * 0.004, PITCH_MIN, PITCH_MAX); }
+  if (canControl() && !turning) hoverAim(e);
 });
 const endDrag = () => { drag = null; G.firing = false; };
-const raycaster = new THREE.Raycaster();
-canvas.addEventListener('pointermove', (e) => {
-  if (G.mode === 'build') { if (!drag || drag.moved < 6) hoverBuild(e); return; }
-  if (canControl() && !(drag && (drag.button === 2 || drag.touch) && drag.moved >= 6)) hoverAim(e);
-});
 canvas.addEventListener('pointerup', (e) => {
   const d = drag, wasClick = d && d.moved < 6;
   endDrag();
   if (G.mode === 'build') { if (wasClick) clickBuild(e); return; }
-  if (!d || !canControl()) return;
+  if (!d || d.lockClick || !canControl()) return;
   if (d.button === 2) return;
   if (!wasClick && d.touch) return;
-  // Clic sobre uno de tus robots: lo selecciona
-  const rect = canvas.getBoundingClientRect();
-  raycaster.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
-  const mine = robots.filter((r) => r.team === G.team && r.alive);
-  const hit = raycaster.intersectObjects(mine.flatMap((r) => [r.die.mesh, ...r.blocks.map((b) => b.mesh)]), false)[0];
-  if (hit && wasClick) { selectRobot(mine.find((r) => r.die.mesh === hit.object || r.blocks.some((b) => b.mesh === hit.object))); return; }
+  const at = mouseLocked() ? CENTER : toNdc(e);
+  // Clic sobre otro de tus robots: lo selecciona
+  const mine = wasClick && ownRobotAt(at);
+  if (mine) { selectRobot(mine); return; }
   // Clic en cualquier otro sitio: dispara ahí (en Guerra total ya disparó al mantener pulsado)
-  hoverAim(e);
+  setAim(at);
   updateAim();
-  if (G.mode === 'war' && !wasClick) return;
-  if (G.mode === 'war' && G.active && G.active.cool > 0) return;
+  if (G.mode === 'war' && (!wasClick || !readyToFire(G.active))) return;
   tryFire();
 });
 canvas.addEventListener('pointercancel', endDrag);
@@ -2576,9 +2915,10 @@ function frame(now) {
   G.timeScale = G.slowmo > 0 ? 0.3 : 1;
   G.slowmo = Math.max(0, G.slowmo - dt);
   G.shake = Math.max(0, G.shake - dt * 2.2);
-  const guest = G.net && NET.role === 'guest';   // en red, el invitado no calcula física: la recibe
+  const guest = G.net && NET.role === 'guest' && G.mode === 'war';   // en red, el invitado no calcula la física de la partida: la recibe
 
   if (canControl()) {
+    // Las flechas y WASD solo mueven el robot: la cámara no gira con él
     const turn = (keys.has('left') ? 1 : 0) - (keys.has('right') ? 1 : 0);
     if (keys.has('up')) G.arc = clamp(G.arc + dt * 0.5, 0, 1);
     if (keys.has('down')) G.arc = clamp(G.arc - dt * 0.5, 0, 1);
@@ -2590,9 +2930,6 @@ function frame(now) {
       if (G.walkLock > 0) updateWalk(dt, 0, 0); else updateWalk(dt, fwd, side, turn);
       if (!G.walking) endWalk();
     } else updateWalk(dt, fwd, side, turn);
-    // Al moverte, la cámara vuelve poco a poco detrás del robot
-    if (fwd || side || turn) G.camOffset *= Math.max(0, 1 - dt * 2.5);
-    updateAim();
     G.timer -= dt;
     if (G.mode === 'aim' && G.timer <= 0) { toast('¡Se acabó el tiempo!', 1200); G.charging = false; G.power = 0; endTurn(); }
   }
@@ -2634,9 +2971,16 @@ function frame(now) {
     r.label.visible = !(r === G.active && (G.mode === 'aim' || G.mode === 'war') && !G.overview);
   }
   updateFan(dt, G.wind.strength);
+  updateCamera(dt);
+  if (canControl()) {
+    // Con el ratón capturado se apunta a lo que haya en el centro de la pantalla (o al aire)
+    if (mouseLocked() && !G.overview) { camera.updateMatrixWorld(); setAim(CENTER); }
+    updateAim();
+  }
+  if (!inMatch()) releaseMouse();
+  updateFacing();
   updatePreview();
   updateHud();
-  updateCamera(dt);
   renderer.render(scene, camera);
 }
 
@@ -2647,7 +2991,8 @@ $('btn-cpu').disabled = false;
 $('btn-2p').disabled = false;
 $('loading').hidden = true;
 window.__bbReady = true;
-window.__bb = { G, robots, things, world, fire, startMatch, planCpuShot, aimDir, B, camera, clickBuild, hoverBuild, saveDesign, loadTemplate, setTool, openBuilder, THREE, stabilityTest, robotGroup, frame, NET: typeof NET !== "undefined" ? NET : null };
+window.__bb = { G, robots, things, world, fire, startMatch, planCpuShot, aimDir, B, camera, clickBuild, hoverBuild, saveDesign, loadTemplate, setTool, openBuilder, THREE, stabilityTest, robotGroup, frame, NET: typeof NET !== "undefined" ? NET : null,
+  setAim, updateAim, tryFire, readyToFire, mouseLocked, gameOver, netRematch, netShowResult, CENTER, get lockWorks() { return lockWorks; } };
 requestAnimationFrame(frame);
 </script>
 <script>

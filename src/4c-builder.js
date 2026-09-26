@@ -308,9 +308,10 @@ function saveDesign() {
   if (i >= 0) CUSTOMS[i] = entry; else CUSTOMS.push(entry);
   const stored = persistCustoms();
   registerCustoms(); fillStartSelect();
-  B.editingId = id; $('b-delete').hidden = false; $('b-start').value = 'c_' + id;
+  B.editingId = id; B.savedKey = 'c_' + id; $('b-delete').hidden = false; $('b-start').value = 'c_' + id;
   const skipped = B.blocks.length - blocks.length;
-  status((stored ? `Guardado "${name}". Aparecerá al elegir robots antes de una partida.` : `Guardado "${name}" solo mientras esta página siga abierta: este navegador no permite guardar datos.`)
+  const where = B.returnTo === 'picker' ? 'Pulsa «Volver a elegir» y ya estará elegido.' : 'Aparecerá al elegir robots antes de una partida.';
+  status((stored ? `Guardado "${name}". ${where}` : `Guardado "${name}" solo mientras esta página siga abierta: este navegador no permite guardar datos.`)
     + (skipped ? ` ${skipped} bloque${skipped > 1 ? 's' : ''} suelto${skipped > 1 ? 's' : ''} no se ${skipped > 1 ? 'guardaron' : 'guardó'}.` : ''));
   tune([523, 784], 'triangle', 0.12, 0.12);
 }
@@ -350,8 +351,13 @@ function nextPose() {
   if (B.last) hoverBuild(B.last);
 }
 
-function openBuilder() {
-  $('menu').hidden = true;
+// returnTo = 'picker': se entra desde la pantalla de elegir robots (o la revancha) y al salir se vuelve ahí
+function openBuilder(returnTo = null) {
+  B.returnTo = returnTo; B.savedKey = null;
+  B.pickerState = returnTo === 'picker'
+    ? { team: picker.team, slots: [...picker.slots], title: $('picker-title').textContent, back: $('picker-back').textContent } : null;
+  if (G.net) NET.stage = 'build';
+  for (const id of ['menu', 'picker', 'result']) $(id).hidden = true;
   clearWorld();
   G.mode = 'build'; G.active = null;
   document.body.classList.add('building');
@@ -359,6 +365,7 @@ function openBuilder() {
   buildDeco.visible = true; fan.visible = false;
   B.blocks = []; B.extra = []; B.die = null; B.undo = []; B.editingId = null;
   $('b-name').value = 'Mi robot'; $('b-delete').hidden = true;
+  $('b-exit').textContent = returnTo === 'picker' ? 'Volver a elegir' : 'Salir';
   fillStartSelect(); setTool('block'); updateCount();
   status('Empieza por la base: haz clic en la mesa. El frente del robot es la flecha amarilla.');
 }
@@ -370,7 +377,20 @@ function exitBuilder() {
   document.body.classList.remove('building');
   G.mode = 'menu';
   setupMatch(); renderTeams();
-  $('menu').hidden = false;
+  if (B.returnTo === 'picker') backToPicker();
+  else $('menu').hidden = false;
+}
+// Vuelve a elegir robots con lo que ya tenías elegido y el robot que acabas de guardar ya puesto el primero
+function backToPicker() {
+  const st = B.pickerState;
+  if (G.net && NET.peerGone) { netToLobby(NET.peerGone); return; }
+  if (!THUMBS) THUMBS = makeThumbs();
+  let slots = st.slots.filter((k) => DESIGNS[k]);
+  if (B.savedKey && DESIGNS[B.savedKey]) slots = [B.savedKey, ...slots].slice(0, 2);
+  if (G.net) NET.stage = 'pick';
+  $('picker').hidden = false;
+  pickerFor(st.team, slots);
+  $('picker-title').textContent = st.title; $('picker-back').textContent = st.back;
 }
 
 for (const b of document.querySelectorAll('#builder [data-tool]')) b.addEventListener('click', () => setTool(b.dataset.tool));

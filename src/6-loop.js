@@ -54,8 +54,13 @@ for (const a of [0, 1, 2, 3]) {
 reticle.traverse((o) => { o.renderOrder = 20; });
 const blockMark = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.4, 24), new THREE.MeshBasicMaterial({ color: 0xff5a4a, transparent: true, depthTest: false, side: THREE.DoubleSide }));
 blockMark.renderOrder = 21;
-scene.add(reticle, blockMark);
+// Flecha en el suelo: hacia dónde mira tu robot (W lo lleva hacia ahí; la cámara ya no gira con él)
+const facingArrow = new THREE.Mesh(
+  new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(1.1, 0), new THREE.Vector2(-0.6, 0.75), new THREE.Vector2(-0.2, 0), new THREE.Vector2(-0.6, -0.75)])).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0xf2b134, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+scene.add(reticle, blockMark, facingArrow);
 const aimRay = new THREE.Raycaster(), pathRay = new THREE.Raycaster();
+const CENTER = new THREE.Vector2(0, 0);
 
 function sceneTargets(exclude) {
   const list = things.filter((t) => !exclude(t)).map((t) => t.mesh);
@@ -63,20 +68,30 @@ function sceneTargets(exclude) {
   if (top) list.push(top);
   return list;
 }
-function pickAim(e) {
+function toNdc(e) {
   const rect = canvas.getBoundingClientRect();
-  aimRay.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
+  return new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+}
+const hitNormal = (hit) => (hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0));
+// Lo que hay en ese punto de la pantalla. Si no toca ninguna superficie, se apunta al aire en esa dirección.
+function pickAim(ndc) {
+  aimRay.setFromCamera(ndc, camera);
   const hit = aimRay.intersectObjects(sceneTargets((t) => t.robot && t.robot.team === G.team), true)[0];
-  if (!hit) return null;
-  const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0);
-  return { p: hit.point.clone(), n };
+  if (!hit) return { air: aimRay.ray.at(400, new THREE.Vector3()) };
+  return { p: hit.point.clone(), n: hitNormal(hit) };
 }
-function hoverAim(e) {
+function setAim(ndc) {
   if (G.locked) return;
-  const h = pickAim(e);
-  G.target = h ? h.p : null; G.targetN = h ? h.n : null;
+  const h = pickAim(ndc);
+  G.target = h.p || null; G.targetN = h.n || null; G.air = h.air || null;
 }
+const hoverAim = (e) => setAim(toNdc(e));
 
+function placeReticle(p, nrm) {
+  reticle.visible = true;
+  reticle.position.copy(p).addScaledVector(nrm, 0.04);
+  reticle.lookAt(reticle.position.clone().add(nrm));
+}
 function updatePreview() {
   pathDots.visible = reticle.visible = blockMark.visible = false;
   G.blocked = false;
@@ -93,44 +108,58 @@ function updatePreview() {
       if (p.y < TABLE.top) break;
     }
   } else {
-    if (!G.target) return;
-    reticle.visible = true;
-    const nrm = G.targetN || up(1);
-    reticle.position.copy(G.target).addScaledVector(nrm, 0.04);
-    reticle.lookAt(reticle.position.clone().add(nrm));
-    if (!G.aim || !G.aim.ok) { retMat.color.set(0xff5a4a); return; }
-    // Recorrido completo, paso a paso igual que el motor de física
-    const { from, n } = G.aim, v = G.aim.v.clone(), p = from.clone(), prev = from.clone();
+    if (!G.aim) return;
+    // Recorrido completo, paso a paso igual que el motor de física.
+    // Tiro bombeado: avisa si algo se cruza antes del objetivo. Tiro directo: marca dónde cae.
+    const { from, n, direct } = G.aim, v = G.aim.v.clone(), p = from.clone(), prev = from.clone();
     const stride = Math.max(1, Math.ceil(n / PATH_N));
     const meshes = sceneTargets((t) => t.robot === G.active);
+    let land = null;
     for (let i = 1; i <= n; i++) {
       v.addScaledVector(a, FIXED_DT); p.addScaledVector(v, FIXED_DT);
-      if (i % stride && i !== n) continue;
-      if (!G.blocked) {
+      const last = i === n || p.y < FLOOR_Y;
+      if (i % stride && !last) continue;
+      if (!land) {
         const seg = p.clone().sub(prev), len = seg.length();
         pathRay.set(prev, seg.divideScalar(len || 1)); pathRay.far = len;
         const hit = len > 1e-4 ? pathRay.intersectObjects(meshes, true)[0] : null;
-        if (hit && hit.point.distanceTo(G.target) > 1.2) {
-          G.blocked = true;
-          blockMark.position.copy(hit.point); blockMark.lookAt(camera.position); blockMark.visible = true;
-        }
+        if (hit && (direct || hit.point.distanceTo(G.target) > 1.2)) land = hit;
       }
-      if (count < PATH_N) { arr[count * 3] = p.x; arr[count * 3 + 1] = p.y; arr[count * 3 + 2] = p.z; count++; }
+      const dot = land && direct ? land.point : p;
+      if (count < PATH_N) { arr[count * 3] = dot.x; arr[count * 3 + 1] = dot.y; arr[count * 3 + 2] = dot.z; count++; }
       prev.copy(p);
+      if (last || (land && direct)) break;
     }
-    retMat.color.set(G.blocked ? 0xff9a3c : G.locked ? 0xffe9a8 : 0xf2b134);
+    if (direct) { if (land) placeReticle(land.point, hitNormal(land)); }
+    else {
+      placeReticle(G.target, G.targetN || up(1));
+      if (land) { G.blocked = true; blockMark.position.copy(land.point); blockMark.lookAt(camera.position); blockMark.visible = true; }
+    }
+    retMat.color.set(G.blocked ? 0xff9a3c : direct ? 0xffe9a8 : 0xf2b134);
   }
   pathDots.material.color.set(G.blocked ? 0xff9a3c : 0xf2b134);
   pathDots.geometry.setDrawRange(0, count);
   pathDots.geometry.attributes.position.needsUpdate = true;
   pathDots.visible = count > 0;
 }
+// Dónde se ve el piloto (el invitado lo suaviza entre paquetes de red)
+const pilotPos = (r) => (G.net && NET.role === 'guest' ? r.die.mesh.position : r.die.body.position);
+function updateFacing() {
+  const r = G.active;
+  facingArrow.visible = !!r && canControl() && !G.overview;
+  if (!facingArrow.visible) return;
+  const d = pilotPos(r), yaw = r.yaw || 0;
+  facingArrow.position.set(d.x + Math.cos(yaw) * 3.8, Math.max(TABLE.top, d.y - r.dieStartY) + 0.06, d.z - Math.sin(yaw) * 3.8);
+  facingArrow.rotation.set(0, yaw, 0);
+}
 
 const camPos = camera.position.clone(), camLook = new THREE.Vector3(0, 2, 0);
-let orbit = 0.6;
+let orbit = 0.6, camKey = '';
 const up = (y) => new THREE.Vector3(0, y, 0);
+const viewDir = (yaw, pitch) => new THREE.Vector3(Math.cos(pitch) * Math.cos(yaw), Math.sin(pitch), Math.cos(pitch) * Math.sin(yaw));
 function updateCamera(dt) {
   const want = new THREE.Vector3(), look = new THREE.Vector3();
+  let free = false;   // cámara del jugador: solo la gira el ratón
   if (G.mode === 'build') {
     const top = B.blocks.length ? unionBox(B.blocks).max.y : 0, fy = clamp(top * 0.45, 1.5, 7);
     want.set(Math.cos(B.camYaw) * Math.cos(B.camPitch) * B.camDist, fy + Math.sin(B.camPitch) * B.camDist, Math.sin(B.camYaw) * Math.cos(B.camPitch) * B.camDist);
@@ -141,12 +170,15 @@ function updateCamera(dt) {
   } else if (G.overview) {
     want.set(0, TABLE.hx * 1.55, TABLE.hz * 2.1); look.set(0, 0, 2);
   } else if ((G.mode === 'aim' || G.mode === 'war') && G.active) {
-    const p = G.active.die.body.position;
-    // La cámara va detrás del robot, mirando hacia donde mira él (más el giro que le des con el clic derecho)
-    G.viewYaw = -(G.active.yaw || 0) + G.camOffset;
-    const dh = new THREE.Vector3(Math.cos(G.viewYaw), 0, Math.sin(G.viewYaw)), side = new THREE.Vector3(-dh.z, 0, dh.x);
-    want.copy(p).addScaledVector(dh, -G.camDist).addScaledVector(side, G.camDist * 0.22).add(up(G.camDist * 0.55 + 2));
-    look.copy(p).addScaledVector(dh, 13).add(up(-1.5));
+    // Detrás del robot y siguiéndolo, pero sin girar con él: el ángulo lo decide el ratón
+    // (en el turno de la CPU, mira hacia donde apunta ella)
+    const cpu = isCpuTurn(), yaw = cpu ? G.yaw : G.camYaw, pitch = cpu ? CAM_PITCH0 : G.camPitch;
+    const p = pilotPos(G.active);
+    // Al mirar hacia arriba la cámara no baja: solo levanta la vista
+    const back = viewDir(yaw, Math.min(pitch, 0)), side = new THREE.Vector3(-Math.sin(yaw), 0, Math.cos(yaw));
+    want.copy(p).add(up(3.6)).addScaledVector(back, -G.camDist).addScaledVector(side, G.camDist * 0.22);
+    look.copy(want).addScaledVector(viewDir(yaw, pitch), 30);
+    free = !cpu;
   } else if (G.mode === 'flying' && G.shot) {
     const p = G.shot.body.position, v = G.shot.body.velocity;
     const vh = new THREE.Vector3(v.x, 0, v.z);
@@ -164,8 +196,17 @@ function updateCamera(dt) {
   const vw = window.innerWidth, vh = window.innerHeight;
   if (G.mode === 'build') camera.setViewOffset(vw, vh, vw > 700 ? -vw * 0.16 : 0, vw > 700 ? -vh * 0.03 : -vh * 0.16, vw, vh);
   else if (camera.view && camera.view.enabled) camera.clearViewOffset();
-  const k = 1 - Math.exp(-dt * (G.mode === 'flying' ? 5 : 3));
-  camPos.lerp(want, k); camLook.lerp(look, k);
+  // Al cambiar de modo o de robot la cámara viaja despacio; después sigue al ratón al momento
+  const key = `${G.mode}|${G.overview}|${robots.indexOf(G.active)}`;
+  if (key !== camKey) { camKey = key; G.camFollow = 0; }
+  G.camFollow = Math.min(1, G.camFollow + dt * 1.6);
+  const k = 1 - Math.exp(-dt * (free ? 3 + 22 * G.camFollow : G.mode === 'flying' ? 5 : 3));
+  camPos.lerp(want, k);
+  if (free) {
+    // La mira es el centro exacto de la pantalla: la vista apunta justo hacia donde dice el ratón
+    look.copy(camPos).addScaledVector(viewDir(G.camYaw, G.camPitch), 30);
+    if (G.camFollow >= 1) camLook.copy(look); else camLook.lerp(look, 1 - Math.exp(-dt * (3 + 57 * G.camFollow)));
+  } else camLook.lerp(look, k);
   camera.position.copy(camPos);
   if (G.shake > 0) camera.position.add(new THREE.Vector3(rand(-1, 1), rand(-0.6, 0.6), rand(-1, 1)).multiplyScalar(G.shake));
   const overTable = Math.abs(camera.position.x) < TABLE.hx + 1 && Math.abs(camera.position.z) < TABLE.hz + 1;
@@ -179,8 +220,32 @@ const KEYMAP = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDow
 const TOUCH_WALK = { up: 'mf', down: 'mb', left: 'ml', right: 'mr' };
 let touchWalk = false;
 const canControl = () => (G.mode === 'aim' || G.mode === 'war') && !isCpuTurn();
-function toggleView() { G.overview = !G.overview; $('btn-view').textContent = G.overview ? 'Vista del robot (V)' : 'Vista general (V)'; }
+const inMatch = () => G.mode === 'aim' || G.mode === 'war' || G.mode === 'flying' || G.mode === 'settle';
+function toggleView() {
+  G.overview = !G.overview;
+  if (G.overview) releaseMouse();   // en la vista general se apunta con el cursor
+  $('btn-view').textContent = G.overview ? 'Vista del robot (V)' : 'Vista general (V)';
+}
 function toggleSound() { audio.on = !audio.on; $('btn-sound').textContent = `Sonido: ${audio.on ? 'sí' : 'no'}`; }
+
+// Ratón capturado (pointer lock): moverlo gira la cámara y se apunta con la mira del centro.
+// En pantallas táctiles, o si el navegador no lo deja, se sigue apuntando con el cursor.
+const canLock = 'requestPointerLock' in canvas && !matchMedia('(pointer: coarse)').matches;
+let lockWorks = null;   // null: aún no se sabe · true: ya funcionó · false: este navegador no deja capturarlo
+const mouseLocked = () => document.pointerLockElement === canvas;
+const lockHint = () => canLock && lockWorks !== false && !mouseLocked();
+function lockMouse() {
+  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch { /* se comprueba abajo */ }
+  // Si nunca ha funcionado y no engancha, se deja de intentar: se apunta y dispara con el cursor
+  setTimeout(() => { if (!mouseLocked() && lockWorks !== true) lockWorks = false; }, 800);
+}
+function releaseMouse() { if (mouseLocked()) document.exitPointerLock(); }
+document.addEventListener('pointerlockchange', () => { if (mouseLocked()) lockWorks = true; else G.firing = false; });
+document.addEventListener('mousemove', (e) => {
+  if (!mouseLocked() || !canControl() || G.overview) return;
+  G.camYaw += clamp(e.movementX, -150, 150) * MOUSE_SENS;
+  G.camPitch = clamp(G.camPitch - clamp(e.movementY, -150, 150) * MOUSE_SENS, PITCH_MIN, PITCH_MAX);
+});
 
 addEventListener('keydown', (e) => {
   if (e.target && e.target.closest && e.target.closest('input, select, textarea')) return;
@@ -199,52 +264,63 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => {
   if (e.code in KEYMAP) keys.delete(KEYMAP[e.code]);
 });
-addEventListener('blur', () => keys.clear());
+addEventListener('blur', () => { keys.clear(); G.firing = false; });
 
 let drag = null;
+const raycaster = new THREE.Raycaster();
+// ¿Hay otro de tus robots (no el que manejas) en ese punto de la pantalla?
+function ownRobotAt(ndc) {
+  raycaster.setFromCamera(ndc, camera);
+  const mine = robots.filter((r) => r.team === G.team && r.alive && r !== G.active);
+  const hit = raycaster.intersectObjects(mine.flatMap((r) => [r.die.mesh, ...r.blocks.map((b) => b.mesh)]), false)[0];
+  return hit ? mine.find((r) => r.die.mesh === hit.object || r.blocks.some((b) => b.mesh === hit.object)) : null;
+}
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('pointerdown', (e) => {
   ensureAudio();
   drag = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: 0, button: e.button, touch: e.pointerType === 'touch' };
-  canvas.setPointerCapture(e.pointerId);
-  // En Guerra total, mantener el botón izquierdo dispara cada vez que el robot recarga
-  if (G.mode === 'war' && e.button === 0 && !drag.touch && canControl()) { hoverAim(e); G.firing = true; }
+  if (!mouseLocked()) try { canvas.setPointerCapture(e.pointerId); } catch { /* nada */ }
+  if (G.mode === 'build') return;
+  // Primer clic en la partida: el ratón pasa a mover la cámara (Esc lo suelta). Ese clic no dispara.
+  if (e.pointerType === 'mouse' && e.button === 0 && lockHint() && inMatch() && !G.overview) { drag.lockClick = true; lockMouse(); return; }
+  // En Guerra total, mantener el botón izquierdo dispara una ráfaga cada vez que el robot recarga
+  if (G.mode === 'war' && e.button === 0 && !drag.touch && canControl()) {
+    const at = mouseLocked() ? CENTER : toNdc(e);
+    if (!mouseLocked()) setAim(at);
+    if (!ownRobotAt(at)) G.firing = true;
+  }
 });
 canvas.addEventListener('pointermove', (e) => {
-  if (!drag || drag.id !== e.pointerId) return;
-  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-  drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (mouseLocked()) return;   // con el ratón capturado, la cámara la mueve 'mousemove'
+  const d = drag && drag.id === e.pointerId ? drag : null;
+  let dx = 0, dy = 0;
+  if (d) { dx = e.clientX - d.x; dy = e.clientY - d.y; d.x = e.clientX; d.y = e.clientY; d.moved += Math.abs(dx) + Math.abs(dy); }
   if (G.mode === 'build') {
-    if (drag.moved > 6) { B.camYaw += dx * 0.006; B.camPitch = clamp(B.camPitch + dy * 0.005, 0.12, 1.4); }
+    if (d && d.moved > 6) { B.camYaw += dx * 0.006; B.camPitch = clamp(B.camPitch + dy * 0.005, 0.12, 1.4); }
+    if (!drag || drag.moved < 6) hoverBuild(e);
     return;
   }
-  // Clic derecho (o un dedo) arrastrando: gira la cámara alrededor de tu robot
-  if ((drag.button === 2 || drag.touch) && drag.moved > 6 && G.mode !== 'menu' && G.mode !== 'over') G.camOffset += dx * 0.006;
+  // Clic derecho (o un dedo) arrastrando: también gira la cámara
+  const turning = d && (d.button === 2 || d.touch) && d.moved > 6;
+  if (turning && canControl() && !G.overview) { G.camYaw += dx * 0.006; G.camPitch = clamp(G.camPitch - dy * 0.004, PITCH_MIN, PITCH_MAX); }
+  if (canControl() && !turning) hoverAim(e);
 });
 const endDrag = () => { drag = null; G.firing = false; };
-const raycaster = new THREE.Raycaster();
-canvas.addEventListener('pointermove', (e) => {
-  if (G.mode === 'build') { if (!drag || drag.moved < 6) hoverBuild(e); return; }
-  if (canControl() && !(drag && (drag.button === 2 || drag.touch) && drag.moved >= 6)) hoverAim(e);
-});
 canvas.addEventListener('pointerup', (e) => {
   const d = drag, wasClick = d && d.moved < 6;
   endDrag();
   if (G.mode === 'build') { if (wasClick) clickBuild(e); return; }
-  if (!d || !canControl()) return;
+  if (!d || d.lockClick || !canControl()) return;
   if (d.button === 2) return;
   if (!wasClick && d.touch) return;
-  // Clic sobre uno de tus robots: lo selecciona
-  const rect = canvas.getBoundingClientRect();
-  raycaster.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
-  const mine = robots.filter((r) => r.team === G.team && r.alive);
-  const hit = raycaster.intersectObjects(mine.flatMap((r) => [r.die.mesh, ...r.blocks.map((b) => b.mesh)]), false)[0];
-  if (hit && wasClick) { selectRobot(mine.find((r) => r.die.mesh === hit.object || r.blocks.some((b) => b.mesh === hit.object))); return; }
+  const at = mouseLocked() ? CENTER : toNdc(e);
+  // Clic sobre otro de tus robots: lo selecciona
+  const mine = wasClick && ownRobotAt(at);
+  if (mine) { selectRobot(mine); return; }
   // Clic en cualquier otro sitio: dispara ahí (en Guerra total ya disparó al mantener pulsado)
-  hoverAim(e);
+  setAim(at);
   updateAim();
-  if (G.mode === 'war' && !wasClick) return;
-  if (G.mode === 'war' && G.active && G.active.cool > 0) return;
+  if (G.mode === 'war' && (!wasClick || !readyToFire(G.active))) return;
   tryFire();
 });
 canvas.addEventListener('pointercancel', endDrag);
@@ -280,9 +356,10 @@ function frame(now) {
   G.timeScale = G.slowmo > 0 ? 0.3 : 1;
   G.slowmo = Math.max(0, G.slowmo - dt);
   G.shake = Math.max(0, G.shake - dt * 2.2);
-  const guest = G.net && NET.role === 'guest';   // en red, el invitado no calcula física: la recibe
+  const guest = G.net && NET.role === 'guest' && G.mode === 'war';   // en red, el invitado no calcula la física de la partida: la recibe
 
   if (canControl()) {
+    // Las flechas y WASD solo mueven el robot: la cámara no gira con él
     const turn = (keys.has('left') ? 1 : 0) - (keys.has('right') ? 1 : 0);
     if (keys.has('up')) G.arc = clamp(G.arc + dt * 0.5, 0, 1);
     if (keys.has('down')) G.arc = clamp(G.arc - dt * 0.5, 0, 1);
@@ -294,9 +371,6 @@ function frame(now) {
       if (G.walkLock > 0) updateWalk(dt, 0, 0); else updateWalk(dt, fwd, side, turn);
       if (!G.walking) endWalk();
     } else updateWalk(dt, fwd, side, turn);
-    // Al moverte, la cámara vuelve poco a poco detrás del robot
-    if (fwd || side || turn) G.camOffset *= Math.max(0, 1 - dt * 2.5);
-    updateAim();
     G.timer -= dt;
     if (G.mode === 'aim' && G.timer <= 0) { toast('¡Se acabó el tiempo!', 1200); G.charging = false; G.power = 0; endTurn(); }
   }
@@ -338,9 +412,16 @@ function frame(now) {
     r.label.visible = !(r === G.active && (G.mode === 'aim' || G.mode === 'war') && !G.overview);
   }
   updateFan(dt, G.wind.strength);
+  updateCamera(dt);
+  if (canControl()) {
+    // Con el ratón capturado se apunta a lo que haya en el centro de la pantalla (o al aire)
+    if (mouseLocked() && !G.overview) { camera.updateMatrixWorld(); setAim(CENTER); }
+    updateAim();
+  }
+  if (!inMatch()) releaseMouse();
+  updateFacing();
   updatePreview();
   updateHud();
-  updateCamera(dt);
   renderer.render(scene, camera);
 }
 
@@ -351,5 +432,6 @@ $('btn-cpu').disabled = false;
 $('btn-2p').disabled = false;
 $('loading').hidden = true;
 window.__bbReady = true;
-window.__bb = { G, robots, things, world, fire, startMatch, planCpuShot, aimDir, B, camera, clickBuild, hoverBuild, saveDesign, loadTemplate, setTool, openBuilder, THREE, stabilityTest, robotGroup, frame, NET: typeof NET !== "undefined" ? NET : null };
+window.__bb = { G, robots, things, world, fire, startMatch, planCpuShot, aimDir, B, camera, clickBuild, hoverBuild, saveDesign, loadTemplate, setTool, openBuilder, THREE, stabilityTest, robotGroup, frame, NET: typeof NET !== "undefined" ? NET : null,
+  setAim, updateAim, tryFire, readyToFire, mouseLocked, gameOver, netRematch, netShowResult, CENTER, get lockWorks() { return lockWorks; } };
 requestAnimationFrame(frame);
